@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aimux-core",
+    "crates/aimux-cli",
+    "crates/aimux-desktop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["AIMux Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aimux-org/aimux"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["full"] }
+thiserror = "1.0"
+anyhow = "1.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+portable-pty = "0.8"
+directories = "5.0"
+regex = "1.10"
+fs2 = "0.4"
+sha2 = "0.10"
+async-trait = "0.1"
+clap = { version = "4.5", features = ["derive", "cargo"] }
+colored = "2.1"
+dunce = "1.0"

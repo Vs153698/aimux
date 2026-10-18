@@ -1,0 +1,23 @@
+# Rust
+/target
+Cargo.lock
+
+# Node / UI
+node_modules/
+dist/
+.vite/
+crates/aimux-desktop/ui/node_modules/
+crates/aimux-desktop/ui/dist/
+
+# OS and Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local runtime & test artifacts
+.aimux/
+*.tmp*
+*.log
