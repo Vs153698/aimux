@@ -22,9 +22,10 @@ pub async fn run_in_current_terminal(
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
     let adapter = get_adapter(profile.provider);
-    let session_env = adapter
+    let mut session_env = adapter
         .build_session_env(&profile.profile_dir, &target_cwd, Some(cmd_args.to_vec()))
         .await?;
+    profile.inject_git_env(&mut session_env.env_vars);
 
     let mut proc = Command::new(&session_env.command[0]);
     if session_env.command.len() > 1 {

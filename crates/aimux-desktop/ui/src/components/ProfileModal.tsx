@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Layers, AlertCircle, FolderOpen } from 'lucide-react';
+import { X, Layers, AlertCircle, FolderOpen, GitCommit, Shield } from 'lucide-react';
 import { ProviderType } from '../types';
 import { api } from '../services/api';
 
@@ -11,6 +11,9 @@ interface ProfileModalProps {
     provider: ProviderType;
     default_workspace?: string;
     color_tag?: string;
+    git_name?: string;
+    git_email?: string;
+    ssh_key_path?: string;
   }) => Promise<void>;
 }
 
@@ -32,6 +35,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [provider, setProvider] = useState<ProviderType>('claude_code');
   const [workspace, setWorkspace] = useState('');
   const [colorTag, setColorTag] = useState(COLOR_OPTIONS[0]);
+  const [gitName, setGitName] = useState('');
+  const [gitEmail, setGitEmail] = useState('');
+  const [sshKeyPath, setSshKeyPath] = useState('');
+  const [showGitConfig, setShowGitConfig] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,9 +70,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         provider,
         default_workspace: workspace.trim() || undefined,
         color_tag: colorTag,
+        git_name: gitName.trim() || undefined,
+        git_email: gitEmail.trim() || undefined,
+        ssh_key_path: sshKeyPath.trim() || undefined,
       });
       setName('');
       setWorkspace('');
+      setGitName('');
+      setGitEmail('');
+      setSshKeyPath('');
+      setShowGitConfig(false);
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Failed to create profile');
@@ -203,6 +217,75 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 />
               ))}
             </div>
+          </div>
+
+          {/* Git & Committer Identity Isolation */}
+          <div className="border border-zinc-800 rounded-lg p-3 bg-[#0a0c10] space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowGitConfig(!showGitConfig)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-2">
+                <GitCommit className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-medium text-zinc-200">Git Identity & SSH Key</span>
+                <span className="text-[10px] text-zinc-500 font-mono">(Optional)</span>
+              </div>
+              <span className="text-[11px] text-zinc-400 hover:text-zinc-200 font-medium">
+                {showGitConfig ? 'Collapse' : 'Configure'}
+              </span>
+            </button>
+
+            {showGitConfig && (
+              <div className="space-y-3 pt-2 border-t border-zinc-800/80 animate-in fade-in duration-100">
+                <div className="text-[11px] text-zinc-400 flex items-start gap-1.5 bg-zinc-900/60 p-2 rounded border border-zinc-800">
+                  <Shield className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Overrides <code className="text-zinc-300 font-mono text-[10px]">GIT_AUTHOR_EMAIL</code> and <code className="text-zinc-300 font-mono text-[10px]">GIT_SSH_COMMAND</code>. Guarantees separate work/personal commit identities without altering local git repository configs.
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                      Git Author Name
+                    </label>
+                    <input
+                      type="text"
+                      value={gitName}
+                      onChange={(e) => setGitName(e.target.value)}
+                      placeholder="e.g. John Doe"
+                      className="w-full bg-[#090b10] border border-zinc-800 focus:border-zinc-700 rounded-md px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                      Git Author Email
+                    </label>
+                    <input
+                      type="email"
+                      value={gitEmail}
+                      onChange={(e) => setGitEmail(e.target.value)}
+                      placeholder="e.g. john@work.corp"
+                      className="w-full bg-[#090b10] border border-zinc-800 focus:border-zinc-700 rounded-md px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                    SSH Key Path (IdentityFile)
+                  </label>
+                  <input
+                    type="text"
+                    value={sshKeyPath}
+                    onChange={(e) => setSshKeyPath(e.target.value)}
+                    placeholder="e.g. ~/.ssh/id_ed25519_work"
+                    className="w-full bg-[#090b10] border border-zinc-800 focus:border-zinc-700 rounded-md px-2.5 py-1.5 text-xs text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}

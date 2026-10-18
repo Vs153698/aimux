@@ -37,9 +37,10 @@ impl SessionSupervisor {
         };
 
         let adapter = get_adapter(profile.provider);
-        let session_env = adapter
+        let mut session_env = adapter
             .build_session_env(&profile.profile_dir, &cwd, custom_command)
             .await?;
+        profile.inject_git_env(&mut session_env.env_vars);
 
         let session_id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp();

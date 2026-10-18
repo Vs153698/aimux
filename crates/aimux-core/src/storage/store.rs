@@ -161,6 +161,9 @@ impl ProfileStore {
             profile_dir,
             verified_identity: None,
             color_tag,
+            git_name: None,
+            git_email: None,
+            ssh_key_path: None,
         };
 
         profiles.push(metadata.clone());

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Trash2, Folder } from 'lucide-react';
+import { Activity, Trash2, Folder, ArrowRightLeft } from 'lucide-react';
 import { SessionMetadata } from '../types';
 
 interface SessionListProps {
@@ -7,6 +7,7 @@ interface SessionListProps {
   onStopSession: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
   onClearExited?: () => void;
+  onHandoff?: (sessionId: string) => void;
 }
 
 export const SessionList: React.FC<SessionListProps> = ({
@@ -14,6 +15,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   onStopSession,
   onDeleteSession,
   onClearExited,
+  onHandoff,
 }) => {
   if (sessions.length === 0) {
     return (
@@ -119,14 +121,26 @@ export const SessionList: React.FC<SessionListProps> = ({
 
                   <td className="py-3 px-4 text-right">
                     {isRunning ? (
-                      <button
-                        onClick={() => onStopSession(s.session_id)}
-                        className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-800/40 px-2.5 py-1 rounded transition-colors"
-                        title="Force kill running session process"
-                      >
-                        <Trash2 className="w-3 h-3 text-rose-400" />
-                        <span>Kill</span>
-                      </button>
+                      <div className="inline-flex items-center gap-1.5">
+                        {onHandoff && (
+                          <button
+                            onClick={() => onHandoff(s.session_id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-sans font-medium text-amber-400 hover:text-amber-300 bg-amber-950/30 hover:bg-amber-950/60 border border-amber-800/40 px-2 py-1 rounded transition-colors"
+                            title="Cross-Provider Context Handoff"
+                          >
+                            <ArrowRightLeft className="w-3 h-3 text-amber-400" />
+                            <span>Handoff</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onStopSession(s.session_id)}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-800/40 px-2.5 py-1 rounded transition-colors"
+                          title="Force kill running session process"
+                        >
+                          <Trash2 className="w-3 h-3 text-rose-400" />
+                          <span>Kill</span>
+                        </button>
+                      </div>
                     ) : (
                       <div className="inline-flex items-center gap-2">
                         <span className="text-zinc-500 font-sans text-[10px]">
@@ -181,13 +195,24 @@ export const SessionList: React.FC<SessionListProps> = ({
                 </div>
 
                 {isRunning ? (
-                  <button
-                    onClick={() => onStopSession(s.session_id)}
-                    className="flex items-center gap-1 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 border border-rose-800/40 px-2 py-0.5 rounded"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Kill</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {onHandoff && (
+                      <button
+                        onClick={() => onHandoff(s.session_id)}
+                        className="flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-950/30 border border-amber-800/40 px-2 py-0.5 rounded"
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                        <span>Handoff</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onStopSession(s.session_id)}
+                      className="flex items-center gap-1 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 border border-rose-800/40 px-2 py-0.5 rounded"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Kill</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-500 text-[10px]">Exited</span>

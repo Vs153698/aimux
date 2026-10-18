@@ -100,6 +100,15 @@ enum ProfileAction {
 
         #[arg(long, help = "Optional color tag (hex or name)")]
         color: Option<String>,
+
+        #[arg(long, help = "Git author and committer name for this profile")]
+        git_name: Option<String>,
+
+        #[arg(long, help = "Git author and committer email for this profile")]
+        git_email: Option<String>,
+
+        #[arg(long, help = "Path to SSH private key for this profile")]
+        ssh_key: Option<PathBuf>,
     },
 
     #[command(about = "Show details of a profile")]
@@ -157,8 +166,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Providers => commands::providers::run_providers().await?,
         Commands::Profiles { action } => match action {
             ProfileAction::List => commands::profiles::list_profiles(&config).await?,
-            ProfileAction::Add { provider, name, workspace, color } => {
-                commands::profiles::add_profile(&config, &provider, &name, workspace, color).await?;
+            ProfileAction::Add { provider, name, workspace, color, git_name, git_email, ssh_key } => {
+                commands::profiles::add_profile(&config, &provider, &name, workspace, color, git_name, git_email, ssh_key).await?;
             }
             ProfileAction::Show { profile } => commands::profiles::show_profile(&config, &profile).await?,
             ProfileAction::Verify { profile } => commands::profiles::verify_profile(&config, &profile).await?,

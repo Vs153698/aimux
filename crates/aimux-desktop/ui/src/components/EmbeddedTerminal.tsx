@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { Terminal as TerminalIcon, Eraser, Trash2, Maximize2, Minimize2, X } from 'lucide-react';
+import { Terminal as TerminalIcon, Eraser, Trash2, Maximize2, Minimize2, X, ArrowRightLeft } from 'lucide-react';
 import { SessionMetadata } from '../types';
 import { isTauri } from '../services/api';
 
@@ -10,6 +10,7 @@ interface EmbeddedTerminalProps {
   activeSessionId?: string;
   onSelectSession: (sessionId: string) => void;
   onStopSession: (sessionId: string) => void;
+  onHandoff?: (sessionId: string) => void;
 }
 
 export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
@@ -17,6 +18,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
   activeSessionId,
   onSelectSession,
   onStopSession,
+  onHandoff,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermInstance = useRef<XTerm | null>(null);
@@ -208,6 +210,16 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {activeSession && onHandoff && activeSession.status === 'running' && (
+            <button
+              onClick={() => onHandoff(activeSession.session_id)}
+              className="p-1 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors"
+              title="Transfer Context & Handoff to Alternate Provider"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+          )}
+
           {activeSession && (
             <button
               onClick={() => onStopSession(activeSession.session_id)}

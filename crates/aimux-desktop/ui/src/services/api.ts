@@ -1,4 +1,4 @@
-import { DiagnosticItem, ProfileMetadata, SessionMetadata } from '../types';
+import { DiagnosticItem, ProfileMetadata, SessionMetadata, HandoffPreview } from '../types';
 
 declare global {
   interface Window {
@@ -62,10 +62,21 @@ export const api = {
     provider: string;
     default_workspace?: string;
     color_tag?: string;
+    git_name?: string;
+    git_email?: string;
+    ssh_key_path?: string;
   }): Promise<ProfileMetadata> {
     if (isTauri()) {
       const { invoke } = await import('@tauri-apps/api/core');
-      return invoke('create_profile', data);
+      return invoke('create_profile', {
+        name: data.name,
+        provider: data.provider,
+        defaultWorkspace: data.default_workspace,
+        colorTag: data.color_tag,
+        gitName: data.git_name,
+        gitEmail: data.git_email,
+        sshKeyPath: data.ssh_key_path,
+      });
     }
     const newProf: ProfileMetadata = {
       id: `mock-${Date.now()}`,
@@ -76,9 +87,37 @@ export const api = {
       default_workspace: data.default_workspace,
       profile_dir: `~/.aimux/profiles/${data.name.toLowerCase().replace(/\s+/g, '-')}`,
       color_tag: data.color_tag || '#3b82f6',
+      git_name: data.git_name,
+      git_email: data.git_email,
+      ssh_key_path: data.ssh_key_path,
     };
     mockProfiles.push(newProf);
     return newProf;
+  },
+
+  async updateProfileGit(
+    id: string,
+    git_name?: string,
+    git_email?: string,
+    ssh_key_path?: string
+  ): Promise<ProfileMetadata> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('update_profile_git', {
+        id,
+        gitName: git_name,
+        gitEmail: git_email,
+        sshKeyPath: ssh_key_path,
+      });
+    }
+    const prof = mockProfiles.find((p) => p.id === id);
+    if (prof) {
+      prof.git_name = git_name;
+      prof.git_email = git_email;
+      prof.ssh_key_path = ssh_key_path;
+      return { ...prof };
+    }
+    throw new Error('Profile not found');
   },
 
   async removeProfile(id: string, purge: boolean = false): Promise<void> {
@@ -222,10 +261,54 @@ export const api = {
       {
         category: 'Desktop Application',
         status: 'warning',
-        title: 'Antigravity Desktop Single-Instance Lock',
+        title: 'Antigravity Desktop SingleInstance Lock',
         details: 'Electron single-instance lock restricts simultaneous GUI windows per OS user. Use independent CLI sessions.',
         remediation: 'Use AIMux CLI profile launcher for concurrent isolated sessions.',
       },
     ];
+  },
+
+  async prepareHandoffContext(sessionId: string): Promise<HandoffPreview> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('prepare_handoff_context', { sessionId });
+    }
+    return {
+      source_session_id: sessionId,
+      source_profile_id: 'mock-1',
+      source_profile_name: 'Claude Work',
+      source_provider: 'claude_code',
+      cwd: '/Users/me/Projects/api-backend',
+      context_markdown: '=== AIMUX CROSS-PROVIDER HANDOFF CONTEXT ===\nResuming previous session work.\n',
+      available_target_profiles: mockProfiles.filter((p) => p.id !== 'mock-1'),
+    };
+  },
+
+  async executeHandoff(
+    sourceSessionId: string,
+    targetProfileId: string,
+    contextMarkdown: string
+  ): Promise<SessionMetadata> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('execute_handoff', {
+        sourceSessionId,
+        targetProfileId,
+        contextMarkdown,
+      });
+    }
+    const newSess: SessionMetadata = {
+      session_id: `sess-${Date.now()}`,
+      profile_id: targetProfileId,
+      provider: 'google_antigravity',
+      pid: Math.floor(Math.random() * 50000) + 1000,
+      cwd: '/Users/me/Projects/api-backend',
+      command: 'agy',
+      started_at: Date.now(),
+      status: 'running',
+      terminal_mode: 'embedded',
+    };
+    mockSessions.unshift(newSess);
+    return newSess;
   },
 };

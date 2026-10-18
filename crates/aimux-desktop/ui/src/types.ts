@@ -18,6 +18,28 @@ export interface ProfileMetadata {
   profile_dir: string;
   verified_identity?: VerifiedIdentity;
   color_tag?: string;
+  git_name?: string;
+  git_email?: string;
+  ssh_key_path?: string;
+}
+
+export interface HandoffPreview {
+  source_session_id: string;
+  source_profile_id: string;
+  source_profile_name: string;
+  source_provider: string;
+  cwd: string;
+  context_markdown: string;
+  available_target_profiles: ProfileMetadata[];
+}
+
+export interface RateLimitAlert {
+  session_id: string;
+  profile_id: string;
+  profile_name: string;
+  provider: string;
+  reason: string;
+  cwd: string;
 }
 
 export type SessionStatus = 'running' | 'exited' | 'failed';

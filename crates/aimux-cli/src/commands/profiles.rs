@@ -49,12 +49,32 @@ pub async fn add_profile(
     name: &str,
     workspace: Option<PathBuf>,
     color: Option<String>,
+    git_name: Option<String>,
+    git_email: Option<String>,
+    ssh_key: Option<PathBuf>,
 ) -> anyhow::Result<()> {
     let provider = ProviderType::parse(provider_str)
         .ok_or_else(|| anyhow::anyhow!("Unknown provider '{}'. Supported: 'claude', 'antigravity'", provider_str))?;
 
     let store = ProfileStore::new(config.clone());
-    let profile = store.create(name, provider, workspace, color)?;
+    let mut profile = store.create(name, provider, workspace, color)?;
+
+    let mut changed = false;
+    if let Some(gn) = git_name {
+        profile.git_name = Some(gn);
+        changed = true;
+    }
+    if let Some(ge) = git_email {
+        profile.git_email = Some(ge);
+        changed = true;
+    }
+    if let Some(sk) = ssh_key {
+        profile.ssh_key_path = Some(sk);
+        changed = true;
+    }
+    if changed {
+        store.update(&profile)?;
+    }
 
     // Initialize provider-specific directory structures and keychains
     let adapter = get_adapter(profile.provider);
@@ -63,6 +83,15 @@ pub async fn add_profile(
     println!("{} Created profile '{}' ({})", "✔".green().bold(), profile.name.bold(), profile.id.dimmed());
     println!("  Provider:   {}", profile.provider.display_name());
     println!("  Directory:  {}", profile.profile_dir.display());
+    if let Some(ref email) = profile.git_email {
+        println!("  Git Email:  {}", email.cyan());
+    }
+    if let Some(ref name) = profile.git_name {
+        println!("  Git Name:   {}", name.cyan());
+    }
+    if let Some(ref ssh) = profile.ssh_key_path {
+        println!("  SSH Key:    {}", ssh.display().to_string().cyan());
+    }
 
     Ok(())
 }
@@ -77,6 +106,15 @@ pub async fn show_profile(config: &AimuxConfig, id_or_name: &str) -> anyhow::Res
     println!("  Directory:        {}", p.profile_dir.display());
     if let Some(ws) = &p.default_workspace {
         println!("  Default Workspace: {}", ws.display());
+    }
+    if let Some(ref email) = p.git_email {
+        println!("  Git Email:        {}", email.cyan());
+    }
+    if let Some(ref name) = p.git_name {
+        println!("  Git Name:         {}", name.cyan());
+    }
+    if let Some(ref ssh) = p.ssh_key_path {
+        println!("  SSH Key:          {}", ssh.display().to_string().cyan());
     }
     
     let created = DateTime::from_timestamp(p.created_at, 0)

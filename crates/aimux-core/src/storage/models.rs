@@ -52,6 +52,38 @@ pub struct ProfileMetadata {
     pub profile_dir: PathBuf,
     pub verified_identity: Option<VerifiedIdentity>,
     pub color_tag: Option<String>,
+    #[serde(default)]
+    pub git_name: Option<String>,
+    #[serde(default)]
+    pub git_email: Option<String>,
+    #[serde(default)]
+    pub ssh_key_path: Option<PathBuf>,
+}
+
+impl ProfileMetadata {
+    pub fn inject_git_env(&self, env_vars: &mut Vec<(String, String)>) {
+        if let Some(ref email) = self.git_email {
+            if !email.trim().is_empty() {
+                env_vars.push(("GIT_AUTHOR_EMAIL".to_string(), email.trim().to_string()));
+                env_vars.push(("GIT_COMMITTER_EMAIL".to_string(), email.trim().to_string()));
+            }
+        }
+        if let Some(ref name) = self.git_name {
+            if !name.trim().is_empty() {
+                env_vars.push(("GIT_AUTHOR_NAME".to_string(), name.trim().to_string()));
+                env_vars.push(("GIT_COMMITTER_NAME".to_string(), name.trim().to_string()));
+            }
+        }
+        if let Some(ref key) = self.ssh_key_path {
+            let key_str = key.to_string_lossy();
+            if !key_str.trim().is_empty() {
+                env_vars.push((
+                    "GIT_SSH_COMMAND".to_string(),
+                    format!("ssh -i \"{}\" -o IdentitiesOnly=yes", key_str.trim()),
+                ));
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -14,21 +14,27 @@ AIMux guarantees **true concurrent account isolation**: you can run multiple ind
 
 - **Concurrent Multi-Account Isolation**:
   - **Claude Code**: Native keychain namespace isolation via dynamic SHA-256 derivation with `CLAUDE_CONFIG_DIR`.
-  - **Google Antigravity**: Dedicated profile-jailed keychain search list and isolated home directory.
-  - Run `Google Personal`, `Google Work`, `Claude Personal`, and `Claude Work` side-by-side.
+  - **Google Antigravity**: Dedicated profile-jailed keychain search list and isolated configuration context.
+  - Run `Google Personal`, `Google Work`, `Claude Personal`, and `Claude Work` side-by-side concurrently.
+- **Git & Committer Identity Restriction (Per Profile)**:
+  - Strict committer identity isolation: automatically injects `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, and `GIT_SSH_COMMAND`.
+  - Precedence Guarantee: Environment variables have Priority 2 in Git's configuration resolution hierarchy, completely overriding local `.git/config` and global `~/.gitconfig` without touching repository files.
+  - Prevents accidental work commits from personal accounts or personal SSH key leaks.
+- **Cross-Provider Rate-Limit Detection & Seamless Context Handoff**:
+  - Real-time PTY stream monitoring automatically detects quota exhaustion (at 93–95% capacity limits or HTTP 429 status codes) across both Anthropic Claude Code and Google Antigravity.
+  - Automated Context Handoff Bridge: captures Git branch state, staged/unstaged diffs, and conversational task objectives into a structured `.aimux-handoff.md`.
+  - 1-Click Failover: Switch from rate-limited Claude Code to Google Antigravity (or vice-versa) with full task continuity so you never have to re-explain the prompt.
+- **Robust Process Supervisor & Terminal Kill**:
+  - Tracks live process groups, PIDs, working directories, and exit codes.
+  - Hardened process termination: sends `SIGTERM` to the process group (`-pid`), waits 50ms, and escalates to `SIGKILL` (`kill -9`) to guarantee complete teardown of top-level shells and nested child processes.
+  - Dedicated trash/kill actions in both the Embedded Terminal header and the Process Monitor, plus close/kill tab controls.
 - **Dual Interfaces**:
-  - **Desktop GUI**: Sleek dark-mode interface built with Tauri v2, React 18, Tailwind CSS, and embedded Xterm.js PTY console.
+  - **Desktop GUI**: Clean, high-density dark-mode interface built with Tauri v2, React 18, Tailwind CSS, and embedded Xterm.js PTY console.
   - **Headless CLI (`aimux`)**: Full-featured standalone CLI that runs independently of the GUI.
 - **Zero Raw Secrets Stored**:
   - The AIMux database stores **zero** API tokens, bearer tokens, passwords, or cookies.
   - Tokens remain solely inside the system keyring or provider-managed configuration.
   - Real-time token redactor scrubs any accidental credential leakage from diagnostics and logs.
-- **Truth in Status & UI**:
-  - Never marks a profile as "isolated" if it is merely renamed.
-  - Accurately reports single-instance constraints (e.g. Electron single-instance lock on Antigravity desktop).
-- **Process Supervisor & PTY**:
-  - Real-time session supervisor tracking process liveness, PIDs, working directories, and exit codes.
-  - Launch external terminal windows or embedded interactive PTY sessions.
 - **Non-Destructive Storage**:
   - Profile deletion never touches project repositories or workspace code.
   - Atomic JSON persistence with cross-process file locking.
@@ -80,6 +86,82 @@ AIMux does **not** intercept, proxy, or extract your private credentials. Authen
    - Your verified account email and display name
    - Your organization and subscription plan tier (e.g. `Google AI Pro`, `Team`, `Pro`)
 4. Any terminal session launched under this profile will now use this authenticated account independently of other profiles.
+
+---
+
+## Feature Deep-Dive: Git & Committer Identity Restriction
+
+A major hazard when working across personal and corporate AI sessions is **Git identity pollution** — accidentally committing enterprise code with a personal GitHub email, or pushing personal open-source commits under a corporate committer ID.
+
+### How AIMux Solves This 100% Reliably
+Git determines author and committer identity using this strict hierarchy:
+1. Direct CLI flags (`--author=...`)
+2. **Environment Variables (`GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_EMAIL`, `GIT_AUTHOR_NAME`, `GIT_COMMITTER_NAME`, `GIT_SSH_COMMAND`)** *(Priority 2)*
+3. Local Repository Config (`.git/config`) *(Priority 3)*
+4. Global User Config (`~/.gitconfig`) *(Priority 4)*
+5. System Defaults
+
+Because Environment Variables take priority over `.git/config` and `~/.gitconfig`, AIMux injects your profile's configured identity directly into the session's environment:
+- **`GIT_AUTHOR_NAME` & `GIT_COMMITTER_NAME`**: Overrides name per session.
+- **`GIT_AUTHOR_EMAIL` & `GIT_COMMITTER_EMAIL`**: Guarantees all `git commit` operations inside the AI session use the intended work or personal email.
+- **`GIT_SSH_COMMAND`**: Pointed to `ssh -i <path_to_key> -o IdentitiesOnly=yes` to force Git to use the profile's dedicated SSH key for `git push`/`git pull`.
+
+### Configuration
+- **In GUI**: Expand **Git Identity & SSH Key** when creating a profile (or edit existing profiles).
+- **In CLI**:
+  ```bash
+  aimux profiles add \
+    --provider claude \
+    --name "Work-Corp" \
+    --git-name "Jane Developer" \
+    --git-email "jane.dev@enterprise.corp" \
+    --ssh-key "~/.ssh/id_ed25519_corp"
+  ```
+
+---
+
+## Feature Deep-Dive: Cross-Provider Rate-Limit Detection & Seamless Handoff
+
+When developing complex projects with Claude Code or Google Antigravity, hitting a rate limit or hourly message quota in the middle of a task is frustrating. Having to open the other tool and re-explain the entire context, what was done, and what remains is slow and error-prone.
+
+AIMux introduces an intelligent, zero-loss **Handoff Bridge**:
+
+```
+┌──────────────────────────────────────┐
+│ Active Provider (e.g. Claude Code)   │
+│ • Hits 93-95% quota / HTTP 429       │
+└──────────────────┬───────────────────┘
+                   │ Real-time PTY stream pattern detection
+┌──────────────────▼───────────────────┐
+│ AIMux Handoff Bridge                 │
+│ • Runs `git status` & `git diff`     │
+│ • Extracts last 30 PTY intent lines  │
+│ • Compiles structured handoff bridge │
+│ • Saves `.aimux-handoff.md` to repo  │
+└──────────────────┬───────────────────┘
+                   │ 1-Click Failover / Execute
+┌──────────────────▼───────────────────┐
+│ Target Provider (e.g. Antigravity)   │
+│ • Old session safely terminated      │
+│ • Launches target CLI in same folder │
+│ • Injects continuation prompt banner │
+└──────────────────────────────────────┘
+```
+
+### 1. Quota & Rate Limit Pattern Recognition
+AIMux monitors live PTY output in real-time, detecting known provider quota exhaustion signatures:
+- **Claude Code**: `"reached your current message limit"`, `"approaching rate limit"`, `"out of extra usage"`, `"rate_limit_error"`, `"429 too many requests"`.
+- **Google Antigravity**: `"quota exceeded for quota metric"`, `"resource has been exhausted"`, `"rate limit reached"`.
+
+### 2. Automated Context Bridge Generation
+When triggered (either automatically on rate limit or manually via the **Handoff** button):
+1. Runs non-destructive `git status --short` and `git diff --stat` to capture modified files, uncommitted work, and branch status.
+2. Strips ANSI escape codes from terminal history and extracts recent task goals and model discussions.
+3. Compiles a Markdown handoff specification saved to `.aimux-handoff.md` in the project root.
+
+### 3. 1-Click Failover Execution
+- The Handoff Modal displays a preview of the context and automatically pre-selects a profile from the **alternate provider** (e.g. Antigravity if Claude was exhausted).
+- Clicking **Transfer & Resume** cleanly terminates the exhausted process, launches the alternate provider in the exact same workspace, and injects the context banner. You can immediately continue without repeating yourself.
 
 ---
 

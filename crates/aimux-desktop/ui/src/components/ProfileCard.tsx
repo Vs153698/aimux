@@ -6,7 +6,8 @@ import {
   RefreshCw, 
   CheckCircle2, 
   AlertCircle,
-  Play
+  Play,
+  GitCommit
 } from 'lucide-react';
 import { ProfileMetadata } from '../types';
 
@@ -139,6 +140,23 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </button>
           )}
         </div>
+
+        {/* Git & Committer Identity Badge */}
+        {(profile.git_name || profile.git_email || profile.ssh_key_path) && (
+          <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-[#0a0c10] border border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-400">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <GitCommit className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+              <span className="truncate font-mono text-zinc-300">
+                {profile.git_email ? `${profile.git_email}` : profile.git_name}
+              </span>
+            </div>
+            {profile.ssh_key_path && (
+              <span className="text-[9px] font-mono px-1 py-0.2 bg-zinc-800/80 text-zinc-300 rounded border border-zinc-700/60 ml-1 flex-shrink-0">
+                SSH
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}

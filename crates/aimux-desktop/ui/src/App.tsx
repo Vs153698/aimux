@@ -4,12 +4,12 @@ import {
   Search, 
   Terminal, 
   Layers, 
-  AlertCircle,
-  X,
-  CheckCircle2
+  AlertCircle, 
+  X, 
+  CheckCircle2 
 } from 'lucide-react';
-import { ProfileMetadata, SessionMetadata, ProviderType } from './types';
-import { api } from './services/api';
+import { ProfileMetadata, SessionMetadata, ProviderType, RateLimitAlert } from './types';
+import { api, isTauri } from './services/api';
 import { Navbar } from './components/Navbar';
 import { ProfileCard } from './components/ProfileCard';
 import { ProfileModal } from './components/ProfileModal';
@@ -17,6 +17,7 @@ import { LaunchModal } from './components/LaunchModal';
 import { SessionList } from './components/SessionList';
 import { DoctorView } from './components/DoctorView';
 import { EmbeddedTerminal } from './components/EmbeddedTerminal';
+import { HandoffModal } from './components/HandoffModal';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<'profiles' | 'sessions' | 'doctor'>('profiles');
@@ -32,6 +33,10 @@ export const App: React.FC = () => {
   const [launchModalMode, setLaunchModalMode] = useState<'external' | 'embedded'>('external');
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
   const [verifyingProfileIds, setVerifyingProfileIds] = useState<Record<string, boolean>>({});
+
+  // Cross-Provider Handoff State
+  const [handoffSessionId, setHandoffSessionId] = useState<string | null>(null);
+  const [handoffAlertReason, setHandoffAlertReason] = useState<string | undefined>();
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(false);
@@ -60,6 +65,28 @@ export const App: React.FC = () => {
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [activeSessionId]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    if (isTauri()) {
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen<RateLimitAlert>('rate-limit-detected', (event) => {
+          const alert = event.payload;
+          setBannerNotice({
+            type: 'error',
+            message: `⚠️ Quota limit detected on ${alert.profile_name}: ${alert.reason}. Cross-provider handoff available.`,
+          });
+          setHandoffSessionId(alert.session_id);
+          setHandoffAlertReason(alert.reason);
+        }).then((u) => {
+          unlisten = u;
+        });
+      });
+    }
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   const handleOpenLaunchModal = (profile: ProfileMetadata, defaultMode: 'external' | 'embedded') => {
     setLaunchModalProfile(profile);
@@ -334,6 +361,10 @@ export const App: React.FC = () => {
                   activeSessionId={activeSessionId}
                   onSelectSession={setActiveSessionId}
                   onStopSession={handleStopSession}
+                  onHandoff={(sid) => {
+                    setHandoffSessionId(sid);
+                    setHandoffAlertReason(undefined);
+                  }}
                 />
               </div>
             )}
@@ -384,6 +415,10 @@ export const App: React.FC = () => {
               onStopSession={handleStopSession}
               onDeleteSession={handleDeleteSession}
               onClearExited={handleClearExitedSessions}
+              onHandoff={(sid) => {
+                setHandoffSessionId(sid);
+                setHandoffAlertReason(undefined);
+              }}
             />
 
             {sessions.length > 0 && (
@@ -396,6 +431,10 @@ export const App: React.FC = () => {
                   activeSessionId={activeSessionId}
                   onSelectSession={setActiveSessionId}
                   onStopSession={handleStopSession}
+                  onHandoff={(sid) => {
+                    setHandoffSessionId(sid);
+                    setHandoffAlertReason(undefined);
+                  }}
                 />
               </div>
             )}
@@ -428,6 +467,28 @@ export const App: React.FC = () => {
         defaultMode={launchModalMode}
         onClose={() => setIsLaunchModalOpen(false)}
         onLaunch={handleExecuteLaunch}
+      />
+
+      {/* Cross-Provider Seamless Context Handoff Modal */}
+      <HandoffModal
+        isOpen={Boolean(handoffSessionId)}
+        sessionId={handoffSessionId}
+        profiles={profiles}
+        alertReason={handoffAlertReason}
+        onClose={() => {
+          setHandoffSessionId(null);
+          setHandoffAlertReason(undefined);
+        }}
+        onSuccess={(newSession) => {
+          loadData();
+          setActiveSessionId(newSession.session_id);
+          setShowEmbeddedPanel(true);
+          setBannerNotice({
+            type: 'success',
+            message: `Cross-provider handoff successful. Switched to ${newSession.command} (PID: ${newSession.pid}). Context injected.`,
+          });
+          setTimeout(() => setBannerNotice(null), 6000);
+        }}
       />
     </div>
   );

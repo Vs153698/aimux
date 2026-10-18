@@ -41,6 +41,9 @@ fn create_profile(
     provider: String,
     default_workspace: Option<String>,
     color_tag: Option<String>,
+    git_name: Option<String>,
+    git_email: Option<String>,
+    ssh_key_path: Option<String>,
 ) -> Result<ProfileMetadata, String> {
     let provider_type = match provider.to_lowercase().as_str() {
         "claude_code" | "claude" => ProviderType::ClaudeCode,
@@ -49,10 +52,46 @@ fn create_profile(
     };
 
     let ws = default_workspace.map(PathBuf::from);
-    state
+    let mut profile = state
         .store
         .create(&name, provider_type, ws, color_tag)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let mut changed = false;
+    if let Some(gn) = git_name.filter(|s| !s.trim().is_empty()) {
+        profile.git_name = Some(gn);
+        changed = true;
+    }
+    if let Some(ge) = git_email.filter(|s| !s.trim().is_empty()) {
+        profile.git_email = Some(ge);
+        changed = true;
+    }
+    if let Some(sk) = ssh_key_path.filter(|s| !s.trim().is_empty()).map(PathBuf::from) {
+        profile.ssh_key_path = Some(sk);
+        changed = true;
+    }
+
+    if changed {
+        state.store.update(&profile).map_err(|e| e.to_string())?;
+    }
+
+    Ok(profile)
+}
+
+#[tauri::command]
+fn update_profile_git(
+    state: State<'_, AppState>,
+    id: String,
+    git_name: Option<String>,
+    git_email: Option<String>,
+    ssh_key_path: Option<String>,
+) -> Result<ProfileMetadata, String> {
+    let mut profile = state.store.get(&id).map_err(|e| e.to_string())?;
+    profile.git_name = git_name.filter(|s| !s.trim().is_empty());
+    profile.git_email = git_email.filter(|s| !s.trim().is_empty());
+    profile.ssh_key_path = ssh_key_path.filter(|s| !s.trim().is_empty()).map(PathBuf::from);
+    state.store.update(&profile).map_err(|e| e.to_string())?;
+    Ok(profile)
 }
 
 #[tauri::command]
@@ -170,10 +209,11 @@ async fn launch_session(
     } else {
         // Embedded PTY session
         let adapter = get_adapter(profile.provider);
-        let session_env = adapter
+        let mut session_env = adapter
             .build_session_env(&profile.profile_dir, &cwd, custom_command)
             .await
             .map_err(|e| e.to_string())?;
+        profile.inject_git_env(&mut session_env.env_vars);
 
         let pty = PtySession::spawn(&session_env.command, &session_env.env_vars, &session_env.working_dir, 30, 100)
             .map_err(|e| e.to_string())?;
@@ -218,8 +258,15 @@ async fn launch_session(
         // Spawn async reader thread to buffer output and emit PTY events to Tauri frontend
         let event_name = format!("pty-output-{}", session_id);
         let app_handle = app.clone();
+        let session_id_clone = session_id.clone();
+        let profile_id_clone = profile.id.clone();
+        let profile_name_clone = profile.name.clone();
+        let provider_clone = profile.provider;
+        let cwd_str_clone = cwd.to_string_lossy().to_string();
+
         thread::spawn(move || {
             let mut buffer = [0u8; 4096];
+            let mut rate_limit_alerted = false;
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => break,
@@ -233,7 +280,22 @@ async fn launch_session(
                             }
                         }
                         let text = String::from_utf8_lossy(bytes).to_string();
-                        let _ = app_handle.emit(&event_name, text);
+                        let _ = app_handle.emit(&event_name, &text);
+
+                        if !rate_limit_alerted {
+                            if let Some(reason) = aimux_core::session::detect_rate_limit(&text) {
+                                rate_limit_alerted = true;
+                                let alert_payload = serde_json::json!({
+                                    "session_id": session_id_clone,
+                                    "profile_id": profile_id_clone,
+                                    "profile_name": profile_name_clone,
+                                    "provider": provider_clone.as_str(),
+                                    "reason": reason,
+                                    "cwd": cwd_str_clone,
+                                });
+                                let _ = app_handle.emit("rate-limit-detected", alert_payload);
+                            }
+                        }
                     }
                     Err(_) => break,
                 }
@@ -311,6 +373,105 @@ async fn pick_directory() -> Result<Option<String>, String> {
     Ok(folder.map(|f| f.path().to_string_lossy().to_string()))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HandoffPreview {
+    source_session_id: String,
+    source_profile_id: String,
+    source_profile_name: String,
+    source_provider: String,
+    cwd: String,
+    context_markdown: String,
+    available_target_profiles: Vec<ProfileMetadata>,
+}
+
+#[tauri::command]
+fn prepare_handoff_context(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<HandoffPreview, String> {
+    let session = state.supervisor.get_session(&session_id).map_err(|e| e.to_string())?;
+    let profile = state.store.get(&session.profile_id).map_err(|e| e.to_string())?;
+
+    let pty_history = {
+        let ptys = state.embedded_ptys.lock().map_err(|e| e.to_string())?;
+        if let Some(h) = ptys.get(&session_id) {
+            if let Ok(hist) = h.history.lock() {
+                String::from_utf8_lossy(&hist).to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        }
+    };
+
+    let context_markdown = aimux_core::session::generate_handoff_context(
+        &session.cwd,
+        &profile.name,
+        profile.provider.display_name(),
+        &pty_history,
+        "Capacity threshold reached / user initiated handoff",
+    );
+
+    let all_profiles = state.store.list().map_err(|e| e.to_string())?;
+    let available_target_profiles = all_profiles
+        .into_iter()
+        .filter(|p| p.id != profile.id)
+        .collect();
+
+    Ok(HandoffPreview {
+        source_session_id: session_id,
+        source_profile_id: profile.id,
+        source_profile_name: profile.name,
+        source_provider: profile.provider.as_str().to_string(),
+        cwd: session.cwd.to_string_lossy().to_string(),
+        context_markdown,
+        available_target_profiles,
+    })
+}
+
+#[tauri::command]
+async fn execute_handoff(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    source_session_id: String,
+    target_profile_id: String,
+    context_markdown: String,
+) -> Result<SessionMetadata, String> {
+    let source_session = state.supervisor.get_session(&source_session_id).map_err(|e| e.to_string())?;
+    let cwd = source_session.cwd.clone();
+
+    // 1. Terminate old rate-limited session
+    let _ = stop_session(app.clone(), state.clone(), source_session_id);
+
+    // 2. Launch target profile in same working directory
+    let new_session = launch_session(
+        app.clone(),
+        state.clone(),
+        target_profile_id,
+        Some(cwd.to_string_lossy().to_string()),
+        Some(false), // embedded mode
+        None,
+    ).await?;
+
+    // 3. Save handoff context to `.aimux-handoff.md` in repository
+    let handoff_file = cwd.join(".aimux-handoff.md");
+    let _ = std::fs::write(&handoff_file, &context_markdown);
+
+    // 4. Inject notification banner into target PTY stream after 600ms
+    let session_id_clone = new_session.session_id.clone();
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        let banner = format!(
+            "\r\n\x1b[1;36m[AIMux Cross-Provider Handoff Active]\x1b[0m\r\n\x1b[90mContext saved to .aimux-handoff.md. Repository diff & goals preserved.\x1b[0m\r\n\r\n"
+        );
+        let _ = app_clone.emit(&format!("pty-output-{}", session_id_clone), banner);
+    });
+
+    Ok(new_session)
+}
+
 fn main() {
     let config = AimuxConfig::default_location().expect("Failed to load AIMux configuration");
     let store = ProfileStore::new(config.clone());
@@ -330,6 +491,7 @@ fn main() {
             create_profile,
             remove_profile,
             update_profile_workspace,
+            update_profile_git,
             verify_profile,
             list_sessions,
             stop_session,
@@ -341,6 +503,8 @@ fn main() {
             resize_pty,
             get_diagnostics,
             pick_directory,
+            prepare_handoff_context,
+            execute_handoff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AIMux desktop application");
