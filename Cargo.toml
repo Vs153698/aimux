@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["AIMux Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/aimux-org/aimux"
+repository = "https://github.com/Vs153698/aimux"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
