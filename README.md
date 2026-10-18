@@ -72,7 +72,36 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed technical specific
 
 ---
 
-## Installation & Building from Source
+## Quick Global Installation (No Manual Building Required)
+
+### Option A: One-Line Installer (CLI + Desktop GUI)
+
+Install the standalone `aimux` CLI globally into `~/.local/bin` and the `AIMux.app` desktop application into `/Applications`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Vs153698/aimux/main/install.sh | bash
+```
+
+### Option B: Install CLI Globally via Cargo
+
+If you have Rust installed and only want the headless CLI tool available system-wide:
+
+```bash
+cargo install --git https://github.com/Vs153698/aimux.git aimux-cli
+```
+
+### Option C: Download Prebuilt Releases
+
+Download precompiled standalone binaries or the macOS `.app` bundle from [GitHub Releases](https://github.com/Vs153698/aimux/releases):
+- **macOS Desktop App**: `AIMux.app.tar.gz` (extract and drag to `/Applications`)
+- **macOS CLI (Apple Silicon)**: `aimux-Darwin-arm64`
+- **macOS CLI (Intel)**: `aimux-Darwin-x86_64`
+- **Linux CLI**: `aimux-Linux-x86_64`
+- **Windows CLI**: `aimux-Windows-x86_64.exe`
+
+---
+
+## Building from Source (Developers)
 
 ### Prerequisites
 
@@ -82,6 +111,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed technical specific
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
   - **Linux**: `libwebkit2gtk-4.1-dev`, `build-essential`, `curl`, `wget`, `file`, `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`
   - **Windows**: Microsoft Visual Studio C++ Build Tools & WebView2 Runtime
+
+### One-Command Package & Install (macOS)
+
+Build both the CLI and Desktop UI, package `AIMux.app`, and install directly into `/Applications` and `~/.local/bin`:
+
+```bash
+./scripts/package-macos.sh --install
+```
 
 ### 1. Build Desktop GUI & Web Assets
 
