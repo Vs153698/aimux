@@ -82,7 +82,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
     // Initial greeting / banner
     if (activeSession) {
-      term.writeln(`\x1b[1;34m[AIMux PTY]\x1b[0m Session \x1b[36m${activeSession.session_id}\x1b[0m started.`);
+      term.writeln(`\x1b[1;34m[AIMux PTY]\x1b[0m Session \x1b[36m${activeSession.session_id.slice(0, 8)}\x1b[0m started.`);
       term.writeln(`\x1b[90mCommand: ${activeSession.command} | Directory: ${activeSession.cwd}\x1b[0m\r\n`);
     } else {
       term.writeln(`\x1b[90mNo active embedded session selected.\x1b[0m\r\n`);
@@ -95,7 +95,9 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
           invoke('write_pty_input', {
             sessionId: activeSession.session_id,
             input: data,
-          }).catch(() => {});
+          }).catch((err) => {
+            console.error('Failed to write PTY input:', err);
+          });
         });
       } else {
         // Browser mock mode: echo back
@@ -110,8 +112,20 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
       }
     });
 
-    // Listen to backend output in Tauri
+    // In Tauri: Fetch buffered history first, then attach live event stream
     if (isTauri() && activeSession) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke<string>('read_pty_history', {
+          sessionId: activeSession.session_id,
+        })
+          .then((hist) => {
+            if (hist && hist.length > 0) {
+              term.write(hist);
+            }
+          })
+          .catch(() => {});
+      });
+
       import('@tauri-apps/api/event').then(({ listen }) => {
         listen<string>(`pty-output-${activeSession.session_id}`, (event) => {
           term.write(event.payload);

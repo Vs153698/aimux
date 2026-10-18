@@ -17,3 +17,4 @@ tokio = { workspace = true, features = ["full"] }
 portable-pty = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+directories = { workspace = true }

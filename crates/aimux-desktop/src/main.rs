@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, State};
 struct PtySessionHandle {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
+    history: Arc<Mutex<Vec<u8>>>,
 }
 
 #[allow(dead_code)]
@@ -103,11 +104,22 @@ async fn launch_session(
     let profile = state.store.get(&profile_id).map_err(|e| e.to_string())?;
 
     let cwd = if let Some(ws) = workspace {
-        PathBuf::from(ws)
+        let p = PathBuf::from(&ws);
+        if ws.trim().is_empty() || p == PathBuf::from("/") {
+            profile.default_workspace.clone().unwrap_or_else(|| {
+                directories::BaseDirs::new()
+                    .map(|d| d.home_dir().to_path_buf())
+                    .unwrap_or_else(|| PathBuf::from("."))
+            })
+        } else {
+            p
+        }
     } else if let Some(ref d) = profile.default_workspace {
         d.clone()
     } else {
-        std::env::current_dir().map_err(|e| e.to_string())?
+        directories::BaseDirs::new()
+            .map(|d| d.home_dir().to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
     };
 
     let is_external = external.unwrap_or(false);
@@ -126,7 +138,7 @@ async fn launch_session(
             .await
             .map_err(|e| e.to_string())?;
 
-        let pty = PtySession::spawn(&session_env.command, &session_env.env_vars, &session_env.working_dir, 24, 80)
+        let pty = PtySession::spawn(&session_env.command, &session_env.env_vars, &session_env.working_dir, 30, 100)
             .map_err(|e| e.to_string())?;
         let pid = pty.process_id().unwrap_or(0);
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -135,9 +147,13 @@ async fn launch_session(
         let mut reader = pty.try_clone_reader().map_err(|e| e.to_string())?;
         let master = pty.master;
 
+        let history = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let history_clone = history.clone();
+
         let session_handle = PtySessionHandle {
             writer: Arc::new(Mutex::new(writer)),
             master: Arc::new(Mutex::new(master)),
+            history: history.clone(),
         };
 
         let session = SessionMetadata {
@@ -160,7 +176,7 @@ async fn launch_session(
             ptys.insert(session_id.clone(), session_handle);
         }
 
-        // Spawn async reader thread to emit PTY output events to Tauri frontend
+        // Spawn async reader thread to buffer output and emit PTY events to Tauri frontend
         let event_name = format!("pty-output-{}", session_id);
         let app_handle = app.clone();
         thread::spawn(move || {
@@ -169,7 +185,15 @@ async fn launch_session(
                 match reader.read(&mut buffer) {
                     Ok(0) => break,
                     Ok(n) => {
-                        let text = String::from_utf8_lossy(&buffer[..n]).to_string();
+                        let bytes = &buffer[..n];
+                        if let Ok(mut hist) = history_clone.lock() {
+                            hist.extend_from_slice(bytes);
+                            if hist.len() > 1_048_576 {
+                                let start = hist.len() - 1_048_576;
+                                *hist = hist[start..].to_vec();
+                            }
+                        }
+                        let text = String::from_utf8_lossy(bytes).to_string();
                         let _ = app_handle.emit(&event_name, text);
                     }
                     Err(_) => break,
@@ -178,6 +202,17 @@ async fn launch_session(
         });
 
         Ok(session)
+    }
+}
+
+#[tauri::command]
+fn read_pty_history(state: State<'_, AppState>, session_id: String) -> Result<String, String> {
+    let ptys = state.embedded_ptys.lock().map_err(|e| e.to_string())?;
+    if let Some(handle) = ptys.get(&session_id) {
+        let hist = handle.history.lock().map_err(|e| e.to_string())?;
+        Ok(String::from_utf8_lossy(&hist).to_string())
+    } else {
+        Ok(String::new())
     }
 }
 
@@ -250,6 +285,7 @@ fn main() {
             list_sessions,
             stop_session,
             launch_session,
+            read_pty_history,
             write_pty_input,
             resize_pty,
             get_diagnostics,

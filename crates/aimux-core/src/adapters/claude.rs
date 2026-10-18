@@ -222,12 +222,52 @@ impl ProviderAdapter for ClaudeCodeAdapter {
         let mut env_vars = Vec::new();
 
         // Forward basic safe environment variables
-        let safe_inherit = ["PATH", "USER", "SHELL", "TERM", "LANG", "LC_ALL"];
+        let safe_inherit = ["USER", "SHELL", "LANG", "LC_ALL"];
         for key in &safe_inherit {
             if let Ok(val) = std::env::var(key) {
                 env_vars.push((key.to_string(), val));
             }
         }
+
+        // Guarantee modern interactive terminal variables
+        env_vars.push(("TERM".to_string(), "xterm-256color".to_string()));
+        env_vars.push(("COLORTERM".to_string(), "truecolor".to_string()));
+
+        // Build enriched PATH with homebrew, local bin, cargo, and standard system paths
+        let mut path_elements = Vec::new();
+        if let Ok(current_path) = std::env::var("PATH") {
+            for p in current_path.split(':') {
+                if !p.is_empty() && !path_elements.contains(&p.to_string()) {
+                    path_elements.push(p.to_string());
+                }
+            }
+        }
+        let standard_paths = [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ];
+        for sp in &standard_paths {
+            if !path_elements.contains(&sp.to_string()) {
+                path_elements.push(sp.to_string());
+            }
+        }
+        if let Some(user_dirs) = directories::BaseDirs::new() {
+            let home = user_dirs.home_dir();
+            let local_bin = home.join(".local/bin").to_string_lossy().to_string();
+            let cargo_bin = home.join(".cargo/bin").to_string_lossy().to_string();
+            if !path_elements.contains(&local_bin) {
+                path_elements.insert(0, local_bin);
+            }
+            if !path_elements.contains(&cargo_bin) {
+                path_elements.insert(1, cargo_bin);
+            }
+        }
+        env_vars.push(("PATH".to_string(), path_elements.join(":")));
 
         // Core isolation variable
         env_vars.push(("CLAUDE_CONFIG_DIR".to_string(), profile_dir.display().to_string()));
