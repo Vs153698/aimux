@@ -31,14 +31,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [name, setName] = useState('');
+  const isDemo = typeof window !== 'undefined' && window.location.search.includes('git');
+  const [name, setName] = useState(isDemo ? 'Enterprise-Work' : '');
   const [provider, setProvider] = useState<ProviderType>('claude_code');
-  const [workspace, setWorkspace] = useState('');
+  const [workspace, setWorkspace] = useState(isDemo ? '/Users/alex/Projects/enterprise-api' : '');
   const [colorTag, setColorTag] = useState(COLOR_OPTIONS[0]);
-  const [gitName, setGitName] = useState('');
-  const [gitEmail, setGitEmail] = useState('');
-  const [sshKeyPath, setSshKeyPath] = useState('');
-  const [showGitConfig, setShowGitConfig] = useState(false);
+  const [gitName, setGitName] = useState(isDemo ? 'Alex Developer' : '');
+  const [gitEmail, setGitEmail] = useState(isDemo ? 'alex.dev@corp.enterprise' : '');
+  const [sshKeyPath, setSshKeyPath] = useState(isDemo ? '~/.ssh/id_ed25519_corp' : '');
+  const [showGitConfig, setShowGitConfig] = useState(isDemo);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

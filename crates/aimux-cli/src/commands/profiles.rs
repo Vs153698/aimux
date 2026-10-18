@@ -187,3 +187,38 @@ pub async fn remove_profile(config: &AimuxConfig, id_or_name: &str, purge: bool)
     }
     Ok(())
 }
+
+pub async fn edit_git_profile(
+    config: &AimuxConfig,
+    id_or_name: &str,
+    git_name: Option<String>,
+    git_email: Option<String>,
+    ssh_key: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let store = ProfileStore::new(config.clone());
+    let mut profile = store.get(id_or_name)?;
+
+    if let Some(gn) = git_name {
+        profile.git_name = if gn.is_empty() { None } else { Some(gn) };
+    }
+    if let Some(ge) = git_email {
+        profile.git_email = if ge.is_empty() { None } else { Some(ge) };
+    }
+    if let Some(sk) = ssh_key {
+        profile.ssh_key_path = Some(sk);
+    }
+
+    store.update(&profile)?;
+    println!("{} Updated Git identity for profile '{}'", "✔".green().bold(), profile.name.bold());
+    if let Some(ref email) = profile.git_email {
+        println!("  Git Email:  {}", email.cyan());
+    }
+    if let Some(ref name) = profile.git_name {
+        println!("  Git Name:   {}", name.cyan());
+    }
+    if let Some(ref ssh) = profile.ssh_key_path {
+        println!("  SSH Key:    {}", ssh.display().to_string().cyan());
+    }
+    Ok(())
+}
+

@@ -6,3 +6,4 @@ pub mod run;
 pub mod sessions;
 pub mod config_cmd;
 pub mod backup;
+pub mod handoff;

@@ -20,13 +20,15 @@ import { EmbeddedTerminal } from './components/EmbeddedTerminal';
 import { HandoffModal } from './components/HandoffModal';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'profiles' | 'sessions' | 'doctor'>('profiles');
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialTab = urlParams?.get('tab') === 'sessions' ? 'sessions' : (urlParams?.get('tab') === 'doctor' ? 'doctor' : 'profiles');
+  const [currentTab, setCurrentTab] = useState<'profiles' | 'sessions' | 'doctor'>(initialTab);
   const [profiles, setProfiles] = useState<ProfileMetadata[]>([]);
   const [sessions, setSessions] = useState<SessionMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<'all' | ProviderType>('all');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(Boolean(urlParams?.has('add')));
   
   // Launch Modal State
   const [launchModalProfile, setLaunchModalProfile] = useState<ProfileMetadata | null>(null);
@@ -35,11 +37,15 @@ export const App: React.FC = () => {
   const [verifyingProfileIds, setVerifyingProfileIds] = useState<Record<string, boolean>>({});
 
   // Cross-Provider Handoff State
-  const [handoffSessionId, setHandoffSessionId] = useState<string | null>(null);
-  const [handoffAlertReason, setHandoffAlertReason] = useState<string | undefined>();
+  const [handoffSessionId, setHandoffSessionId] = useState<string | null>(
+    urlParams?.has('handoff') ? 'sess-84f92a10' : null
+  );
+  const [handoffAlertReason, setHandoffAlertReason] = useState<string | undefined>(
+    urlParams?.has('handoff') ? 'Approaching hourly message limit (95% quota reached) on Claude Code' : undefined
+  );
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-  const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(false);
+  const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(Boolean(urlParams?.has('panel')));
   const [bannerNotice, setBannerNotice] = useState<{ type: 'info' | 'error' | 'success'; message: string } | null>(null);
 
   const loadData = async () => {

@@ -66,6 +66,21 @@ enum Commands {
         action: SessionAction,
     },
 
+    #[command(about = "Transfer session context and failover to another AI profile")]
+    Handoff {
+        #[arg(short, long, help = "Target profile to switch to")]
+        to: String,
+
+        #[arg(short, long, help = "Source profile or session ID (optional, auto-detected from cwd)")]
+        from: Option<String>,
+
+        #[arg(long, help = "Working directory (defaults to current dir)")]
+        cwd: Option<PathBuf>,
+
+        #[arg(long, help = "Launch in external terminal window")]
+        external: bool,
+    },
+
     #[command(about = "Show AIMux storage paths and configuration")]
     Config,
 
@@ -123,6 +138,21 @@ enum ProfileAction {
         profile: String,
     },
 
+    #[command(about = "Update Git author/committer identity and SSH key for a profile")]
+    EditGit {
+        #[arg(help = "Profile friendly name or UUID")]
+        profile: String,
+
+        #[arg(long, help = "Git author and committer name")]
+        git_name: Option<String>,
+
+        #[arg(long, help = "Git author and committer email")]
+        git_email: Option<String>,
+
+        #[arg(long, help = "Path to SSH private key")]
+        ssh_key: Option<PathBuf>,
+    },
+
     #[command(about = "Remove an account profile")]
     Remove {
         #[arg(help = "Profile friendly name or UUID")]
@@ -164,10 +194,16 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Doctor => commands::doctor::run_doctor().await?,
         Commands::Providers => commands::providers::run_providers().await?,
+        Commands::Handoff { to, from, cwd, external } => {
+            commands::handoff::run_handoff(&config, &to, from, cwd, external).await?;
+        }
         Commands::Profiles { action } => match action {
             ProfileAction::List => commands::profiles::list_profiles(&config).await?,
             ProfileAction::Add { provider, name, workspace, color, git_name, git_email, ssh_key } => {
                 commands::profiles::add_profile(&config, &provider, &name, workspace, color, git_name, git_email, ssh_key).await?;
+            }
+            ProfileAction::EditGit { profile, git_name, git_email, ssh_key } => {
+                commands::profiles::edit_git_profile(&config, &profile, git_name, git_email, ssh_key).await?;
             }
             ProfileAction::Show { profile } => commands::profiles::show_profile(&config, &profile).await?,
             ProfileAction::Verify { profile } => commands::profiles::verify_profile(&config, &profile).await?,

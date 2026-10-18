@@ -20,6 +20,9 @@ let mockProfiles: ProfileMetadata[] = [
     profile_dir: '~/.aimux/profiles/claude-work',
     default_workspace: '/Users/me/Projects/api-backend',
     color_tag: '#8b5cf6',
+    git_name: 'Alex Developer',
+    git_email: 'alex@enterprise-ai.com',
+    ssh_key_path: '~/.ssh/id_ed25519_corp',
     verified_identity: {
       email: 'alex@enterprise-ai.com',
       display_name: 'Alex Developer',
@@ -30,23 +33,57 @@ let mockProfiles: ProfileMetadata[] = [
   },
   {
     id: 'mock-2',
-    name: 'Google Personal',
+    name: 'Google Antigravity Work',
     provider: 'google_antigravity',
     created_at: Date.now() - 172800000,
     last_used_at: Date.now() - 7200000,
-    profile_dir: '~/.aimux/profiles/google-personal',
-    default_workspace: '/Users/me/Personal/experiments',
+    profile_dir: '~/.aimux/profiles/google-work',
+    default_workspace: '/Users/me/Projects/api-backend',
     color_tag: '#3b82f6',
+    git_name: 'Alex Developer',
+    git_email: 'alex.work@enterprise.com',
+    ssh_key_path: '~/.ssh/id_ed25519_work',
     verified_identity: {
-      email: 'alex.personal@gmail.com',
-      display_name: 'Alex P.',
+      email: 'alex.work@enterprise.com',
+      display_name: 'Alex D.',
+      organization: 'Enterprise AI Lab',
       plan_tier: 'Google AI Pro',
       verified_at: Date.now() - 7200000,
     },
   },
+  {
+    id: 'mock-3',
+    name: 'Personal Claude',
+    provider: 'claude_code',
+    created_at: Date.now() - 259200000,
+    last_used_at: Date.now() - 1800000,
+    profile_dir: '~/.aimux/profiles/personal-claude',
+    default_workspace: '/Users/me/Personal/experiments',
+    color_tag: '#10b981',
+    git_name: 'Alex Personal',
+    git_email: 'alex.personal@gmail.com',
+    verified_identity: {
+      email: 'alex.personal@gmail.com',
+      display_name: 'Alex P.',
+      plan_tier: 'Pro',
+      verified_at: Date.now() - 1800000,
+    },
+  },
 ];
 
-let mockSessions: SessionMetadata[] = [];
+let mockSessions: SessionMetadata[] = [
+  {
+    session_id: 'sess-84f92a10',
+    profile_id: 'mock-1',
+    provider: 'claude_code',
+    pid: 38492,
+    cwd: '/Users/me/Projects/api-backend',
+    command: 'claude',
+    started_at: Date.now() - 420000,
+    status: 'running',
+    terminal_mode: 'embedded',
+  },
+];
 
 export const api = {
   async listProfiles(): Promise<ProfileMetadata[]> {
