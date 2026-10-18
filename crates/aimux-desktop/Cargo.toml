@@ -18,3 +18,4 @@ portable-pty = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 directories = { workspace = true }
+rfd = "0.17.2"

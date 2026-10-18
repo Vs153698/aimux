@@ -1,129 +1,152 @@
 import React from 'react';
-import { Terminal, ExternalLink, ShieldCheck, AlertCircle, Trash2, Folder, CheckCircle2, RefreshCw } from 'lucide-react';
+import { 
+  ExternalLink, 
+  Trash2, 
+  Folder, 
+  RefreshCw, 
+  CheckCircle2, 
+  AlertCircle,
+  Play
+} from 'lucide-react';
 import { ProfileMetadata } from '../types';
 
 interface ProfileCardProps {
   profile: ProfileMetadata;
-  onLaunch: (profile: ProfileMetadata, external: boolean) => void;
+  onLaunchPrompt: (profile: ProfileMetadata, defaultMode: 'external' | 'embedded') => void;
   onVerify: (profile: ProfileMetadata) => void;
   onDelete: (profile: ProfileMetadata) => void;
+  onPickDirectory?: (profile: ProfileMetadata) => void;
 }
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   profile,
-  onLaunch,
+  onLaunchPrompt,
   onVerify,
   onDelete,
+  onPickDirectory,
 }) => {
   const isClaude = profile.provider === 'claude_code';
   const identity = profile.verified_identity;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between group">
+    <div className="bg-[#10131b] border border-zinc-800 hover:border-zinc-700/80 rounded-xl p-4 transition-all flex flex-col justify-between group shadow-sm hover:shadow-md">
       <div>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-4 h-4 rounded-full flex-shrink-0"
-              style={{ backgroundColor: profile.color_tag || (isClaude ? '#8b5cf6' : '#3b82f6') }}
+        {/* Top Header: Indicator + Name + Provider + Delete */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <span
+              className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+              style={{ backgroundColor: profile.color_tag || (isClaude ? '#a855f7' : '#3b82f6') }}
             />
-            <div>
-              <h3 className="font-semibold text-lg text-white group-hover:text-blue-400 transition-colors">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm text-zinc-100 truncate group-hover:text-white transition-colors">
                 {profile.name}
               </h3>
               <div className="flex items-center gap-2 mt-0.5">
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded border font-medium ${
                     isClaude
-                      ? 'bg-purple-950/60 text-purple-300 border border-purple-800/50'
-                      : 'bg-blue-950/60 text-blue-300 border border-blue-800/50'
+                      ? 'bg-purple-950/40 text-purple-300 border-purple-800/40'
+                      : 'bg-blue-950/40 text-blue-300 border-blue-800/40'
                   }`}
                 >
-                  {isClaude ? 'Claude Code' : 'Google Antigravity'}
+                  {isClaude ? 'Claude Code' : 'Antigravity'}
                 </span>
-                <span className="text-xs text-slate-500">• ID: {profile.id.slice(0, 8)}</span>
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  #{profile.id.slice(0, 6)}
+                </span>
               </div>
             </div>
           </div>
 
           <button
             onClick={() => onDelete(profile)}
-            className="text-slate-500 hover:text-red-400 p-1.5 rounded-md hover:bg-slate-800 transition-colors"
+            className="text-zinc-500 hover:text-rose-400 p-1 rounded-md hover:bg-zinc-800/60 transition-colors opacity-70 group-hover:opacity-100"
             title="Delete Profile"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Identity & Status */}
-        <div className="mt-4 p-3 rounded-lg bg-slate-950/60 border border-slate-800/80">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Authenticated Identity</span>
+        <div className="mt-3.5 px-3 py-2.5 rounded-lg bg-[#0a0c10] border border-zinc-800/80">
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="text-zinc-500 font-medium">Provider Identity</span>
             <button
               onClick={() => onVerify(profile)}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-              title="Re-check authentication status"
+              className="text-zinc-400 hover:text-zinc-200 flex items-center gap-1 transition-colors"
+              title="Verify active account status"
             >
-              <RefreshCw className="w-3 h-3" />
-              Verify
+              <RefreshCw className="w-2.5 h-2.5" />
+              <span>Verify</span>
             </button>
           </div>
 
           {identity ? (
-            <div className="mt-2 space-y-1">
-              <div className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                 <span className="truncate">{identity.email || identity.display_name || 'Active Account'}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400 pl-5.5">
+              <div className="flex items-center gap-2 text-[10px] text-zinc-400 pl-5">
                 {identity.organization && <span>Org: {identity.organization}</span>}
                 {identity.plan_tier && (
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-950/50 text-emerald-300 border border-emerald-800/40">
+                  <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 font-mono">
                     {identity.plan_tier}
                   </span>
                 )}
               </div>
             </div>
           ) : (
-            <div className="mt-2 flex items-center gap-2 text-xs text-amber-400/90 bg-amber-950/20 p-2 rounded border border-amber-800/30">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>Unverified. Launch a terminal session to complete provider sign-in.</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-400/90 py-0.5">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">Unverified. Launch to authenticate.</span>
             </div>
           )}
         </div>
 
-        {/* Workspace directory */}
-        <div className="mt-3 text-xs text-slate-400 flex items-center gap-1.5 truncate">
-          <Folder className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-          <span className="truncate" title={profile.default_workspace || 'Current directory'}>
-            Workspace: {profile.default_workspace || 'Current Directory'}
-          </span>
-        </div>
-
-        {!isClaude && (
-          <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-blue-400 flex-shrink-0" />
-            <span>Profile-jailed Keychain isolation active</span>
+        {/* Project Directory / Workspace */}
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 min-w-0 text-zinc-400 font-mono text-[11px]">
+            <Folder className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+            <span 
+              className="truncate" 
+              title={profile.default_workspace || 'Default: Home directory (~)'}
+            >
+              {profile.default_workspace || '~ (Home)'}
+            </span>
           </div>
-        )}
+
+          {onPickDirectory && (
+            <button
+              onClick={() => onPickDirectory(profile)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 font-medium ml-2 px-1.5 py-0.5 rounded hover:bg-zinc-800/60 transition-colors flex-shrink-0"
+              title="Set default directory"
+            >
+              Change
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="mt-5 pt-4 border-t border-slate-800 flex items-center gap-2">
+      {/* Action Buttons */}
+      <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center gap-2">
         <button
-          onClick={() => onLaunch(profile, true)}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-slate-700 hover:border-slate-600"
+          onClick={() => onLaunchPrompt(profile, 'external')}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-zinc-700/60 hover:border-zinc-600"
+          title="Prompt directory and launch in external terminal"
         >
-          <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
-          Open Terminal
+          <ExternalLink className="w-3 h-3 text-zinc-400" />
+          <span>Terminal</span>
         </button>
 
         <button
-          onClick={() => onLaunch(profile, false)}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600/90 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-sm shadow-blue-600/20"
+          onClick={() => onLaunchPrompt(profile, 'embedded')}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm"
+          title="Prompt directory and launch in embedded console"
         >
-          <Terminal className="w-3.5 h-3.5" />
-          Embedded PTY
+          <Play className="w-3 h-3 fill-current" />
+          <span>Launch PTY</span>
         </button>
       </div>
     </div>

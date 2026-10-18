@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Layers, AlertCircle } from 'lucide-react';
+import { X, Layers, AlertCircle, FolderOpen } from 'lucide-react';
 import { ProviderType } from '../types';
+import { api } from '../services/api';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ interface ProfileModalProps {
 
 const COLOR_OPTIONS = [
   '#3b82f6', // blue
-  '#8b5cf6', // purple
+  '#a855f7', // purple
   '#10b981', // emerald
   '#f59e0b', // amber
   '#ec4899', // pink
@@ -36,10 +37,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handlePickDirectory = async () => {
+    try {
+      const selected = await api.pickDirectory();
+      if (selected) {
+        setWorkspace(selected);
+      }
+    } catch (e) {
+      console.error('Directory browse failed:', e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Please provide a friendly profile name');
+      setError('Please provide a profile name');
       return;
     }
 
@@ -63,26 +75,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-              <Layers className="w-4 h-4" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">Add Account Profile</h2>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !isSubmitting) onClose();
+      }}
+    >
+      <div className="bg-[#0f1219] border border-zinc-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/80 bg-[#141822]/60">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-zinc-300" />
+            <h2 className="text-sm font-semibold text-zinc-100">Add Account Profile</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            disabled={isSubmitting}
+            className="text-zinc-500 hover:text-zinc-300 p-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors disabled:opacity-50"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 p-3 text-xs text-red-400 bg-red-950/30 border border-red-800/40 rounded-lg">
+            <div className="flex items-center gap-2 p-2.5 text-xs text-rose-400 bg-rose-950/30 border border-rose-800/40 rounded-lg">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -90,72 +111,83 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           {/* Provider Selection */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Provider Platform
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setProvider('claude_code')}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-3 rounded-lg border text-left transition-all ${
                   provider === 'claude_code'
-                    ? 'border-purple-500 bg-purple-950/30 ring-1 ring-purple-500/50'
-                    : 'border-slate-800 bg-slate-950/50 hover:border-slate-700'
+                    ? 'border-purple-500/80 bg-purple-950/20 ring-1 ring-purple-500/30'
+                    : 'border-zinc-800 bg-[#0a0c10] hover:border-zinc-700'
                 }`}
               >
-                <div className="font-medium text-sm text-white">Claude Code</div>
-                <div className="text-xs text-slate-400 mt-0.5">Anthropic CLI</div>
-                <div className="text-[10px] text-purple-400 mt-2 font-medium">Native SHA-256 Isolation</div>
+                <div className="font-semibold text-xs text-zinc-100">Claude Code</div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">Anthropic CLI</div>
+                <div className="text-[10px] text-purple-400 mt-1 font-mono">Isolated Config Dir</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setProvider('google_antigravity')}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-3 rounded-lg border text-left transition-all ${
                   provider === 'google_antigravity'
-                    ? 'border-blue-500 bg-blue-950/30 ring-1 ring-blue-500/50'
-                    : 'border-slate-800 bg-slate-950/50 hover:border-slate-700'
+                    ? 'border-blue-500/80 bg-blue-950/20 ring-1 ring-blue-500/30'
+                    : 'border-zinc-800 bg-[#0a0c10] hover:border-zinc-700'
                 }`}
               >
-                <div className="font-medium text-sm text-white">Antigravity</div>
-                <div className="text-xs text-slate-400 mt-0.5">Google `agy` CLI</div>
-                <div className="text-[10px] text-blue-400 mt-2 font-medium">Profile-Jailed Keychain</div>
+                <div className="font-semibold text-xs text-zinc-100">Antigravity</div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">Google `agy` CLI</div>
+                <div className="text-[10px] text-blue-400 mt-1 font-mono">Isolated Keychain List</div>
               </button>
             </div>
           </div>
 
           {/* Profile Name */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Friendly Profile Name
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+              Profile Name
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Google Personal, Claude Work, Client Corp"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+              placeholder="e.g. Personal, Work, Client A"
+              className="w-full bg-[#090b10] border border-zinc-800 focus:border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 transition-all"
               required
+              autoFocus
             />
           </div>
 
-          {/* Workspace Path */}
+          {/* Default Workspace */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Default Project / Workspace Directory <span className="text-slate-500">(Optional)</span>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+              Default Project Directory <span className="text-zinc-500">(Optional)</span>
             </label>
-            <input
-              type="text"
-              value={workspace}
-              onChange={(e) => setWorkspace(e.target.value)}
-              placeholder="/Users/username/Projects/my-app"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={workspace}
+                onChange={(e) => setWorkspace(e.target.value)}
+                placeholder="/path/to/project (leave blank for home)"
+                className="flex-1 bg-[#090b10] border border-zinc-800 focus:border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 transition-all"
+              />
+              <button
+                type="button"
+                onClick={handlePickDirectory}
+                className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 flex-shrink-0"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Browse</span>
+              </button>
+            </div>
           </div>
 
           {/* Color Tag */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Color Tag
             </label>
             <div className="flex items-center gap-2">
@@ -164,8 +196,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   key={c}
                   type="button"
                   onClick={() => setColorTag(c)}
-                  className={`w-6 h-6 rounded-full transition-transform ${
-                    colorTag === c ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-slate-900' : 'hover:scale-110 opacity-70'
+                  className={`w-5 h-5 rounded-full transition-all ${
+                    colorTag === c ? 'scale-125 ring-2 ring-zinc-300 ring-offset-2 ring-offset-[#0f1219]' : 'opacity-70 hover:opacity-100'
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -173,18 +205,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+          {/* Footer Actions */}
+          <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              disabled={isSubmitting}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md shadow-blue-600/20 transition-all"
+              className="bg-zinc-100 hover:bg-white text-zinc-950 font-semibold px-4 py-1.5 rounded-lg text-xs transition-colors shadow-sm disabled:opacity-50"
             >
               {isSubmitting ? 'Creating...' : 'Create Profile'}
             </button>

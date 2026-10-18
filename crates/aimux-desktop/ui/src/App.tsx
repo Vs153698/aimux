@@ -4,14 +4,16 @@ import {
   Search, 
   Terminal, 
   Layers, 
-  Folder, 
-  AlertCircle
+  AlertCircle,
+  X,
+  CheckCircle2
 } from 'lucide-react';
 import { ProfileMetadata, SessionMetadata, ProviderType } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
 import { ProfileCard } from './components/ProfileCard';
 import { ProfileModal } from './components/ProfileModal';
+import { LaunchModal } from './components/LaunchModal';
 import { SessionList } from './components/SessionList';
 import { DoctorView } from './components/DoctorView';
 import { EmbeddedTerminal } from './components/EmbeddedTerminal';
@@ -24,10 +26,15 @@ export const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<'all' | ProviderType>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedWorkspace, setSelectedWorkspace] = useState('');
+  
+  // Launch Modal State
+  const [launchModalProfile, setLaunchModalProfile] = useState<ProfileMetadata | null>(null);
+  const [launchModalMode, setLaunchModalMode] = useState<'external' | 'embedded'>('external');
+  const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(false);
-  const [bannerNotice, setBannerNotice] = useState<string | null>(null);
+  const [bannerNotice, setBannerNotice] = useState<{ type: 'info' | 'error' | 'success'; message: string } | null>(null);
 
   const loadData = async () => {
     try {
@@ -53,10 +60,30 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeSessionId]);
 
-  const handleLaunch = async (profile: ProfileMetadata, external: boolean) => {
+  const handleOpenLaunchModal = (profile: ProfileMetadata, defaultMode: 'external' | 'embedded') => {
+    setLaunchModalProfile(profile);
+    setLaunchModalMode(defaultMode);
+    setIsLaunchModalOpen(true);
+  };
+
+  const handleExecuteLaunch = async (
+    profile: ProfileMetadata,
+    workspace: string,
+    external: boolean,
+    saveAsDefault: boolean
+  ) => {
     try {
       setBannerNotice(null);
-      const cwd = selectedWorkspace || profile.default_workspace;
+      
+      if (saveAsDefault) {
+        try {
+          await api.updateProfileWorkspace(profile.id, workspace || undefined);
+        } catch (e) {
+          console.error('Failed to update default workspace', e);
+        }
+      }
+
+      const cwd = workspace.trim() || profile.default_workspace;
       const sess = await api.launchSession(profile.id, cwd, external);
       
       await loadData();
@@ -64,12 +91,22 @@ export const App: React.FC = () => {
 
       if (!external) {
         setShowEmbeddedPanel(true);
+        setBannerNotice({
+          type: 'success',
+          message: `Attached embedded PTY for ${profile.name} (PID: ${sess.pid})`,
+        });
       } else {
-        setBannerNotice(`Launched ${profile.name} in external terminal window.`);
-        setTimeout(() => setBannerNotice(null), 5000);
+        setBannerNotice({
+          type: 'info',
+          message: `Launched ${profile.name} in external terminal window (PID: ${sess.pid}).`,
+        });
       }
+      setTimeout(() => setBannerNotice(null), 5000);
     } catch (err: any) {
-      setBannerNotice(`Launch failed: ${err.message || String(err)}`);
+      setBannerNotice({
+        type: 'error',
+        message: `Launch failed: ${err.message || String(err)}`,
+      });
     }
   };
 
@@ -77,10 +114,33 @@ export const App: React.FC = () => {
     try {
       await api.verifyProfile(profile.id);
       await loadData();
-      setBannerNotice(`Profile ${profile.name} identity verified successfully.`);
+      setBannerNotice({
+        type: 'success',
+        message: `Profile ${profile.name} identity verified successfully.`,
+      });
       setTimeout(() => setBannerNotice(null), 4000);
     } catch (err: any) {
-      setBannerNotice(`Verification check: ${err.message || String(err)}`);
+      setBannerNotice({
+        type: 'info',
+        message: `Verification check: ${err.message || String(err)}`,
+      });
+    }
+  };
+
+  const handlePickDefaultWorkspace = async (profile: ProfileMetadata) => {
+    try {
+      const selected = await api.pickDirectory();
+      if (selected !== null && selected !== undefined) {
+        await api.updateProfileWorkspace(profile.id, selected.trim() || undefined);
+        await loadData();
+        setBannerNotice({
+          type: 'success',
+          message: `Updated default directory for ${profile.name}`,
+        });
+        setTimeout(() => setBannerNotice(null), 3000);
+      }
+    } catch (err: any) {
+      console.error('Failed to update workspace:', err);
     }
   };
 
@@ -116,7 +176,7 @@ export const App: React.FC = () => {
   const runningSessions = sessions.filter((s) => s.status === 'running');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600/30 selection:text-blue-200">
+    <div className="min-h-screen bg-[#090b10] text-zinc-100 flex flex-col font-sans selection:bg-zinc-700 selection:text-white">
       <Navbar
         currentTab={currentTab}
         setTab={setCurrentTab}
@@ -124,113 +184,110 @@ export const App: React.FC = () => {
         runningSessionCount={runningSessions.length}
       />
 
-      {/* Global Status Notice */}
+      {/* Global Status Banner */}
       {bannerNotice && (
-        <div className="bg-blue-950/80 border-b border-blue-800/60 px-4 py-2.5 text-xs text-blue-200 flex items-center justify-between">
+        <div 
+          className={`border-b px-4 py-2 text-xs flex items-center justify-between transition-colors ${
+            bannerNotice.type === 'error'
+              ? 'bg-rose-950/40 border-rose-800/50 text-rose-300'
+              : bannerNotice.type === 'success'
+              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300'
+              : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+          }`}
+        >
           <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
-            <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
-            <span>{bannerNotice}</span>
+            {bannerNotice.type === 'error' && <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />}
+            {bannerNotice.type === 'success' && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
+            {bannerNotice.type === 'info' && <Terminal className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />}
+            <span className="truncate">{bannerNotice.message}</span>
+            <button
+              onClick={() => setBannerNotice(null)}
+              className="ml-auto text-zinc-400 hover:text-zinc-200 p-0.5 rounded"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Workspace Quick-Bar */}
-      <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-2.5">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <Folder className="w-4 h-4 text-blue-400 flex-shrink-0" />
-            <span className="font-medium text-slate-300">Launch Working Directory:</span>
-            <input
-              type="text"
-              placeholder="Leave blank for profile default directory"
-              value={selectedWorkspace}
-              onChange={(e) => setSelectedWorkspace(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-slate-200 w-72 focus:outline-none focus:border-blue-500 font-mono text-xs"
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowEmbeddedPanel(!showEmbeddedPanel)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-colors ${
-                showEmbeddedPanel
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                  : 'hover:bg-slate-800 text-slate-400'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>{showEmbeddedPanel ? 'Hide Terminal Panel' : 'Show Terminal Panel'}</span>
-            </button>
-            <span className="text-slate-600">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>Isolated Local Storage</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
         {currentTab === 'profiles' && (
-          <div className="space-y-6">
-            {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <div className="space-y-5">
+            {/* Filter and Action Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type="text"
-                  placeholder="Filter profiles by name or email..."
+                  placeholder="Filter profiles..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-[#10131b] border border-zinc-800 focus:border-zinc-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-600 transition-all"
                 />
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                <div className="flex items-center bg-[#10131b] border border-zinc-800 p-0.5 rounded-lg text-xs font-medium">
+                  <button
+                    onClick={() => setSelectedProvider('all')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      selectedProvider === 'all'
+                        ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    All ({profiles.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedProvider('claude_code')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      selectedProvider === 'claude_code'
+                        ? 'bg-zinc-800 text-purple-300 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Claude
+                  </button>
+                  <button
+                    onClick={() => setSelectedProvider('google_antigravity')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      selectedProvider === 'google_antigravity'
+                        ? 'bg-zinc-800 text-blue-300 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Antigravity
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setSelectedProvider('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    selectedProvider === 'all'
-                      ? 'bg-slate-800 text-white border border-slate-700'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  onClick={() => setShowEmbeddedPanel(!showEmbeddedPanel)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    showEmbeddedPanel
+                      ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
+                      : 'bg-[#10131b] text-zinc-400 border-zinc-800 hover:text-zinc-200'
                   }`}
+                  title="Toggle embedded console panel"
                 >
-                  All Providers
-                </button>
-                <button
-                  onClick={() => setSelectedProvider('claude_code')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    selectedProvider === 'claude_code'
-                      ? 'bg-purple-950/60 text-purple-300 border border-purple-800/50'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  Claude Code
-                </button>
-                <button
-                  onClick={() => setSelectedProvider('google_antigravity')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    selectedProvider === 'google_antigravity'
-                      ? 'bg-blue-950/60 text-blue-300 border border-blue-800/50'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  Google Antigravity
+                  <Terminal className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">
+                    {showEmbeddedPanel ? 'Hide Console' : 'Show Console'}
+                  </span>
                 </button>
               </div>
             </div>
 
-            {/* Embedded Terminal Section */}
+            {/* Embedded Terminal Section (Collapsible) */}
             {showEmbeddedPanel && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Interactive PTY Shell
-                  </h3>
+              <div className="space-y-1.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-mono text-[11px] text-zinc-500 uppercase tracking-wider">
+                    Interactive Console View
+                  </span>
                   <button
                     onClick={() => setShowEmbeddedPanel(false)}
-                    className="text-xs text-slate-500 hover:text-slate-300"
+                    className="text-zinc-500 hover:text-zinc-300 text-[11px]"
                   >
                     Close panel
                   </button>
@@ -246,34 +303,35 @@ export const App: React.FC = () => {
 
             {/* Profile Grid */}
             {loading && profiles.length === 0 ? (
-              <div className="text-center py-16 bg-slate-900/40 border border-slate-800/80 rounded-2xl">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-xs text-slate-400">Loading isolated profiles...</p>
+              <div className="text-center py-16 bg-[#10131b] border border-zinc-800 rounded-xl">
+                <div className="w-6 h-6 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-xs text-zinc-400">Loading isolated profiles...</p>
               </div>
             ) : filteredProfiles.length === 0 ? (
-              <div className="text-center py-16 bg-slate-900/40 border border-slate-800/80 rounded-2xl">
-                <Layers className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-slate-300">No Profiles Found</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
-                  Get started by adding an isolated Google Antigravity or Anthropic Claude account profile.
+              <div className="text-center py-14 bg-[#10131b] border border-zinc-800 rounded-xl">
+                <Layers className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-zinc-300">No Profiles Configured</h3>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 mb-4">
+                  Add an isolated Google Antigravity or Anthropic Claude account profile to get started.
                 </p>
                 <button
                   onClick={() => setIsAddModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-md transition-all"
+                  className="inline-flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add New Profile
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create First Profile</span>
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProfiles.map((p) => (
                   <ProfileCard
                     key={p.id}
                     profile={p}
-                    onLaunch={handleLaunch}
+                    onLaunchPrompt={handleOpenLaunchModal}
                     onVerify={handleVerify}
                     onDelete={handleDelete}
+                    onPickDirectory={handlePickDefaultWorkspace}
                   />
                 ))}
               </div>
@@ -282,14 +340,14 @@ export const App: React.FC = () => {
         )}
 
         {currentTab === 'sessions' && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <SessionList sessions={sessions} onStopSession={handleStopSession} />
 
             {sessions.length > 0 && (
-              <div className="space-y-2 pt-2">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Attached PTY Console
-                </h3>
+              <div className="space-y-1.5 pt-2">
+                <span className="font-mono text-[11px] text-zinc-500 uppercase tracking-wider">
+                  Live Console View
+                </span>
                 <EmbeddedTerminal
                   sessions={sessions}
                   activeSessionId={activeSessionId}
@@ -312,7 +370,21 @@ export const App: React.FC = () => {
           await api.createProfile(data);
           await loadData();
           setIsAddModalOpen(false);
+          setBannerNotice({
+            type: 'success',
+            message: `Created profile "${data.name}"`,
+          });
+          setTimeout(() => setBannerNotice(null), 3000);
         }}
+      />
+
+      {/* Launch Directory Prompt Modal */}
+      <LaunchModal
+        isOpen={isLaunchModalOpen}
+        profile={launchModalProfile}
+        defaultMode={launchModalMode}
+        onClose={() => setIsLaunchModalOpen(false)}
+        onLaunch={handleExecuteLaunch}
       />
     </div>
   );

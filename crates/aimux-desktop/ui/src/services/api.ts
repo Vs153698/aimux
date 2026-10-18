@@ -89,6 +89,27 @@ export const api = {
     mockProfiles = mockProfiles.filter((p) => p.id !== id);
   },
 
+  async updateProfileWorkspace(id: string, workspace?: string): Promise<ProfileMetadata> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('update_profile_workspace', { id, workspace });
+    }
+    const prof = mockProfiles.find((p) => p.id === id);
+    if (prof) {
+      prof.default_workspace = workspace;
+      return { ...prof };
+    }
+    throw new Error('Profile not found');
+  },
+
+  async pickDirectory(): Promise<string | null> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('pick_directory');
+    }
+    return prompt('Enter project directory path:', '/Users/developer/Projects/my-app');
+  },
+
   async verifyProfile(id: string): Promise<ProfileMetadata> {
     if (isTauri()) {
       const { invoke } = await import('@tauri-apps/api/core');

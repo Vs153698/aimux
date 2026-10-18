@@ -61,6 +61,18 @@ fn remove_profile(state: State<'_, AppState>, id: String, purge: Option<bool>) -
 }
 
 #[tauri::command]
+fn update_profile_workspace(
+    state: State<'_, AppState>,
+    id: String,
+    workspace: Option<String>,
+) -> Result<ProfileMetadata, String> {
+    let mut profile = state.store.get(&id).map_err(|e| e.to_string())?;
+    profile.default_workspace = workspace.filter(|w| !w.trim().is_empty()).map(PathBuf::from);
+    state.store.update(&profile).map_err(|e| e.to_string())?;
+    Ok(profile)
+}
+
+#[tauri::command]
 async fn verify_profile(state: State<'_, AppState>, id: String) -> Result<ProfileMetadata, String> {
     let mut profile = state.store.get(&id).map_err(|e| e.to_string())?;
 
@@ -263,6 +275,15 @@ async fn get_diagnostics() -> Result<Vec<DiagnosticItem>, String> {
     Ok(items)
 }
 
+#[tauri::command]
+async fn pick_directory() -> Result<Option<String>, String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("Select Project Directory")
+        .pick_folder()
+        .await;
+    Ok(folder.map(|f| f.path().to_string_lossy().to_string()))
+}
+
 fn main() {
     let config = AimuxConfig::default_location().expect("Failed to load AIMux configuration");
     let store = ProfileStore::new(config.clone());
@@ -281,6 +302,7 @@ fn main() {
             list_profiles,
             create_profile,
             remove_profile,
+            update_profile_workspace,
             verify_profile,
             list_sessions,
             stop_session,
@@ -289,6 +311,7 @@ fn main() {
             write_pty_input,
             resize_pty,
             get_diagnostics,
+            pick_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AIMux desktop application");
