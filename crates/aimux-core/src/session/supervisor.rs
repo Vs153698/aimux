@@ -135,22 +135,63 @@ impl SessionSupervisor {
         if session.status == SessionStatus::Running && session.pid > 0 {
             #[cfg(unix)]
             {
-                // Send SIGTERM to PID
                 unsafe {
-                    libc::kill(session.pid as i32, libc::SIGTERM);
+                    let pid = session.pid as i32;
+                    // First try SIGTERM on process and process group
+                    let _ = libc::kill(-pid, libc::SIGTERM);
+                    let _ = libc::kill(pid, libc::SIGTERM);
+
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+
+                    // If process is still alive, force kill with SIGKILL
+                    if libc::kill(pid, 0) == 0 {
+                        let _ = libc::kill(-pid, libc::SIGKILL);
+                        let _ = libc::kill(pid, libc::SIGKILL);
+                    }
                 }
             }
             #[cfg(windows)]
             {
                 let _ = std::process::Command::new("taskkill")
-                    .args(["/PID", &session.pid.to_string(), "/F"])
+                    .args(["/PID", &session.pid.to_string(), "/T", "/F"])
                     .status();
             }
             session.status = SessionStatus::Exited;
-            session.exit_code = Some(143); // 128 + 15 (SIGTERM)
+            session.exit_code = Some(137); // 128 + 9 (SIGKILL)
             self.save_session(&session)?;
         }
         Ok(session)
+    }
+
+    pub fn delete_session(&self, session_id: &str) -> Result<()> {
+        let _ = self.stop_session(session_id);
+        let path = self.config.sessions_dir().join(format!("{}.json", session_id));
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+
+    pub fn clear_exited_sessions(&self) -> Result<()> {
+        let dir = self.config.sessions_dir();
+        if !dir.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(mut session) = serde_json::from_str::<SessionMetadata>(&content) {
+                        self.refresh_session_liveness(&mut session);
+                        if session.status != SessionStatus::Running {
+                            let _ = fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn refresh_session_liveness(&self, session: &mut SessionMetadata) {

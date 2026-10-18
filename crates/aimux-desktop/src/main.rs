@@ -11,12 +11,13 @@ use aimux_core::config::AimuxConfig;
 use aimux_core::session::pty::PtySession;
 use aimux_core::session::SessionSupervisor;
 use aimux_core::storage::{ProfileMetadata, ProfileStore, ProviderType, SessionMetadata, SessionStatus, TerminalMode};
-use portable_pty::MasterPty;
+use portable_pty::{Child, MasterPty};
 use tauri::{AppHandle, Emitter, State};
 
 struct PtySessionHandle {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
+    child: Arc<Mutex<Box<dyn Child + Send>>>,
     history: Arc<Mutex<Vec<u8>>>,
 }
 
@@ -96,12 +97,36 @@ fn list_sessions(state: State<'_, AppState>) -> Result<Vec<SessionMetadata>, Str
 }
 
 #[tauri::command]
-fn stop_session(state: State<'_, AppState>, session_id: String) -> Result<(), String> {
+fn stop_session(app: AppHandle, state: State<'_, AppState>, session_id: String) -> Result<(), String> {
     state.supervisor.stop_session(&session_id).map_err(|e| e.to_string())?;
 
     let mut ptys = state.embedded_ptys.lock().map_err(|e| e.to_string())?;
-    ptys.remove(&session_id);
+    if let Some(handle) = ptys.remove(&session_id) {
+        if let Ok(mut child) = handle.child.lock() {
+            let _ = child.kill();
+        }
+    }
+    let _ = app.emit(&format!("pty-output-{}", session_id), "\r\n\x1b[31m[Session terminated by user]\x1b[0m\r\n".to_string());
     Ok(())
+}
+
+#[tauri::command]
+fn delete_session(app: AppHandle, state: State<'_, AppState>, session_id: String) -> Result<(), String> {
+    let _ = state.supervisor.stop_session(&session_id);
+
+    let mut ptys = state.embedded_ptys.lock().map_err(|e| e.to_string())?;
+    if let Some(handle) = ptys.remove(&session_id) {
+        if let Ok(mut child) = handle.child.lock() {
+            let _ = child.kill();
+        }
+    }
+    let _ = app.emit(&format!("pty-output-{}", session_id), "\r\n\x1b[31m[Session removed]\x1b[0m\r\n".to_string());
+    state.supervisor.delete_session(&session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_exited_sessions(state: State<'_, AppState>) -> Result<(), String> {
+    state.supervisor.clear_exited_sessions().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -157,6 +182,7 @@ async fn launch_session(
 
         let writer = pty.take_writer().map_err(|e| e.to_string())?;
         let mut reader = pty.try_clone_reader().map_err(|e| e.to_string())?;
+        let child = pty.child;
         let master = pty.master;
 
         let history = Arc::new(Mutex::new(Vec::<u8>::new()));
@@ -165,6 +191,7 @@ async fn launch_session(
         let session_handle = PtySessionHandle {
             writer: Arc::new(Mutex::new(writer)),
             master: Arc::new(Mutex::new(master)),
+            child: Arc::new(Mutex::new(child)),
             history: history.clone(),
         };
 
@@ -306,6 +333,8 @@ fn main() {
             verify_profile,
             list_sessions,
             stop_session,
+            delete_session,
+            clear_exited_sessions,
             launch_session,
             read_pty_history,
             write_pty_input,

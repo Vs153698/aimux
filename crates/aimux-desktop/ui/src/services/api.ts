@@ -175,8 +175,24 @@ export const api = {
     const sess = mockSessions.find((s) => s.session_id === sessionId);
     if (sess) {
       sess.status = 'exited';
-      sess.exit_code = 143;
+      sess.exit_code = 137;
     }
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('delete_session', { sessionId });
+    }
+    mockSessions = mockSessions.filter((s) => s.session_id !== sessionId);
+  },
+
+  async clearExitedSessions(): Promise<void> {
+    if (isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('clear_exited_sessions');
+    }
+    mockSessions = mockSessions.filter((s) => s.status === 'running');
   },
 
   async getDiagnostics(): Promise<DiagnosticItem[]> {

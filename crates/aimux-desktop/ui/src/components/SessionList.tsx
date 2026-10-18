@@ -1,15 +1,19 @@
 import React from 'react';
-import { Activity, Square, Folder } from 'lucide-react';
+import { Activity, Trash2, Folder } from 'lucide-react';
 import { SessionMetadata } from '../types';
 
 interface SessionListProps {
   sessions: SessionMetadata[];
   onStopSession: (sessionId: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
+  onClearExited?: () => void;
 }
 
 export const SessionList: React.FC<SessionListProps> = ({
   sessions,
   onStopSession,
+  onDeleteSession,
+  onClearExited,
 }) => {
   if (sessions.length === 0) {
     return (
@@ -24,6 +28,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   }
 
   const runningCount = sessions.filter((s) => s.status === 'running').length;
+  const exitedCount = sessions.length - runningCount;
 
   return (
     <div className="bg-[#10131b] border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
@@ -36,7 +41,20 @@ export const SessionList: React.FC<SessionListProps> = ({
             {runningCount} active
           </span>
         </div>
-        <span className="text-[11px] text-zinc-500 font-mono">{sessions.length} total</span>
+
+        <div className="flex items-center gap-3">
+          {exitedCount > 0 && onClearExited && (
+            <button
+              onClick={onClearExited}
+              className="text-[11px] text-zinc-400 hover:text-rose-400 flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#090b10] hover:bg-zinc-800/60 border border-zinc-800 transition-colors"
+              title="Purge all exited session history"
+            >
+              <Trash2 className="w-3 h-3 text-zinc-500" />
+              <span>Clear Exited ({exitedCount})</span>
+            </button>
+          )}
+          <span className="text-[11px] text-zinc-500 font-mono">{sessions.length} total</span>
+        </div>
       </div>
 
       {/* Desktop Table View */}
@@ -103,15 +121,27 @@ export const SessionList: React.FC<SessionListProps> = ({
                     {isRunning ? (
                       <button
                         onClick={() => onStopSession(s.session_id)}
-                        className="inline-flex items-center gap-1 text-[11px] font-sans font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 hover:bg-rose-950/50 border border-rose-800/40 px-2 py-1 rounded transition-colors"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-800/40 px-2.5 py-1 rounded transition-colors"
+                        title="Force kill running session process"
                       >
-                        <Square className="w-2.5 h-2.5 fill-current" />
+                        <Trash2 className="w-3 h-3 text-rose-400" />
                         <span>Kill</span>
                       </button>
                     ) : (
-                      <span className="text-zinc-500 font-sans text-[10px]">
-                        Exited ({s.exit_code ?? 0})
-                      </span>
+                      <div className="inline-flex items-center gap-2">
+                        <span className="text-zinc-500 font-sans text-[10px]">
+                          Exited ({s.exit_code ?? 0})
+                        </span>
+                        {onDeleteSession && (
+                          <button
+                            onClick={() => onDeleteSession(s.session_id)}
+                            className="text-zinc-500 hover:text-rose-400 p-1 rounded hover:bg-zinc-800/60 transition-colors"
+                            title="Delete session record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -153,12 +183,24 @@ export const SessionList: React.FC<SessionListProps> = ({
                 {isRunning ? (
                   <button
                     onClick={() => onStopSession(s.session_id)}
-                    className="text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 border border-rose-800/40 px-2 py-0.5 rounded"
+                    className="flex items-center gap-1 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-950/30 border border-rose-800/40 px-2 py-0.5 rounded"
                   >
-                    Kill
+                    <Trash2 className="w-3 h-3" />
+                    <span>Kill</span>
                   </button>
                 ) : (
-                  <span className="text-zinc-500 text-[10px]">Exited</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-500 text-[10px]">Exited</span>
+                    {onDeleteSession && (
+                      <button
+                        onClick={() => onDeleteSession(s.session_id)}
+                        className="text-zinc-500 hover:text-rose-400 p-1 rounded"
+                        title="Delete session record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

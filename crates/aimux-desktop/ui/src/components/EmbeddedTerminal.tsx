@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
-import { Terminal as TerminalIcon, Square, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import { Terminal as TerminalIcon, Eraser, Trash2, Maximize2, Minimize2, X } from 'lucide-react';
 import { SessionMetadata } from '../types';
 import { isTauri } from '../services/api';
 
@@ -171,45 +170,60 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
               const isRunning = s.status === 'running';
 
               return (
-                <button
+                <div
                   key={s.session_id}
-                  onClick={() => onSelectSession(s.session_id)}
-                  className={`flex items-center gap-2 px-2.5 py-1 rounded text-xs font-mono transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono transition-all ${
                     isSelected
                       ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-sm'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'
-                    }`}
-                  />
-                  <span>{s.command.split(' ')[0]}</span>
-                  <span className="text-[10px] text-zinc-500">#{s.pid}</span>
-                </button>
+                  <button
+                    onClick={() => onSelectSession(s.session_id)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'
+                      }`}
+                    />
+                    <span>{s.command.split(' ')[0]}</span>
+                    <span className="text-[10px] text-zinc-500">#{s.pid}</span>
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStopSession(s.session_id);
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 p-0.5 rounded transition-colors ml-0.5"
+                    title="Kill & Close Session"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               );
             })
           )}
         </div>
 
         <div className="flex items-center gap-1">
-          {activeSession && activeSession.status === 'running' && (
+          {activeSession && (
             <button
               onClick={() => onStopSession(activeSession.session_id)}
               className="p-1 text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 rounded transition-colors"
-              title="Stop Session"
+              title="Kill & Terminate Active Session"
             >
-              <Square className="w-3.5 h-3.5 fill-current" />
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
             </button>
           )}
 
           <button
             onClick={clearTerminal}
             className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
-            title="Clear Console"
+            title="Clear Console Output"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Eraser className="w-3.5 h-3.5" />
           </button>
 
           <button

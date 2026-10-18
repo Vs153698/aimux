@@ -164,8 +164,40 @@ export const App: React.FC = () => {
     try {
       await api.stopSession(sessionId);
       await loadData();
+      setBannerNotice({
+        type: 'info',
+        message: 'Session terminated.',
+      });
+      setTimeout(() => setBannerNotice(null), 3000);
     } catch (err: any) {
       console.error('Stop session failed:', err);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await api.deleteSession(sessionId);
+      await loadData();
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s.session_id !== sessionId);
+        setActiveSessionId(remaining[0]?.session_id);
+      }
+    } catch (err: any) {
+      console.error('Delete session failed:', err);
+    }
+  };
+
+  const handleClearExitedSessions = async () => {
+    try {
+      await api.clearExitedSessions();
+      await loadData();
+      setBannerNotice({
+        type: 'info',
+        message: 'Cleared all exited sessions.',
+      });
+      setTimeout(() => setBannerNotice(null), 3000);
+    } catch (err: any) {
+      console.error('Clear exited sessions failed:', err);
     }
   };
 
@@ -347,7 +379,12 @@ export const App: React.FC = () => {
 
         {currentTab === 'sessions' && (
           <div className="space-y-5">
-            <SessionList sessions={sessions} onStopSession={handleStopSession} />
+            <SessionList 
+              sessions={sessions} 
+              onStopSession={handleStopSession}
+              onDeleteSession={handleDeleteSession}
+              onClearExited={handleClearExitedSessions}
+            />
 
             {sessions.length > 0 && (
               <div className="space-y-1.5 pt-2">
