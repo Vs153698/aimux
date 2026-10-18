@@ -31,6 +31,7 @@ export const App: React.FC = () => {
   const [launchModalProfile, setLaunchModalProfile] = useState<ProfileMetadata | null>(null);
   const [launchModalMode, setLaunchModalMode] = useState<'external' | 'embedded'>('external');
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+  const [verifyingProfileIds, setVerifyingProfileIds] = useState<Record<string, boolean>>({});
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(false);
@@ -112,18 +113,22 @@ export const App: React.FC = () => {
 
   const handleVerify = async (profile: ProfileMetadata) => {
     try {
+      setVerifyingProfileIds((prev) => ({ ...prev, [profile.id]: true }));
       await api.verifyProfile(profile.id);
       await loadData();
       setBannerNotice({
         type: 'success',
-        message: `Profile ${profile.name} identity verified successfully.`,
+        message: `Profile "${profile.name}" verified: identity confirmed.`,
       });
       setTimeout(() => setBannerNotice(null), 4000);
     } catch (err: any) {
       setBannerNotice({
-        type: 'info',
+        type: 'error',
         message: `Verification check: ${err.message || String(err)}`,
       });
+      setTimeout(() => setBannerNotice(null), 5000);
+    } finally {
+      setVerifyingProfileIds((prev) => ({ ...prev, [profile.id]: false }));
     }
   };
 
@@ -328,6 +333,7 @@ export const App: React.FC = () => {
                   <ProfileCard
                     key={p.id}
                     profile={p}
+                    isVerifying={Boolean(verifyingProfileIds[p.id])}
                     onLaunchPrompt={handleOpenLaunchModal}
                     onVerify={handleVerify}
                     onDelete={handleDelete}

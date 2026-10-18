@@ -35,6 +35,54 @@ AIMux guarantees **true concurrent account isolation**: you can run multiple ind
 
 ---
 
+## Profile Setup & Authentication Workflow (Step-by-Step)
+
+AIMux does **not** intercept, proxy, or extract your private credentials. Authentication occurs directly through the provider's official CLI inside an isolated sandbox.
+
+```
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ 1. New Profile  │ ───►  │ 2. Launch PTY   │ ───►  │ 3. Sign In in   │ ───►  │ 4. Click Verify │
+│ Pick Provider   │       │ Select Folder & │       │ Terminal via    │       │ Shows Loader &  │
+│ & Friendly Name │       │ Open Console    │       │ Official OAuth  │       │ Confirms Email  │
+└─────────────────┘       └─────────────────┘       └─────────────────┘       └─────────────────┘
+```
+
+### Step 1: Create a Profile in the GUI
+1. Open **AIMux** from `/Applications/AIMux.app` (or launch `aimux-desktop`).
+2. Click **+ New Profile** in the top right corner.
+3. Select your provider platform:
+   - **Anthropic Claude Code**: Uses isolated `CLAUDE_CONFIG_DIR` with dynamic SHA-256 keychain namespacing.
+   - **Google Antigravity**: Uses profile-jailed keychain search list and isolated configuration context.
+4. Enter a friendly profile name (e.g. `Claude Personal`, `Google Work`, `Client Alpha`).
+5. *(Optional)* Select a default project directory (or leave blank for home `~`) and pick a color tag.
+6. Click **Create Profile**. Your new profile will appear on the dashboard marked as `Unverified`.
+
+### Step 2: Launch the Embedded Terminal (`Launch PTY`)
+1. On the profile card, click the **Launch PTY** button (or click the **Sign In** shortcut link).
+2. The **Launch Session** modal will prompt you for the working directory:
+   - Keep the default directory, type any project path, or click **Browse...** to pick a folder via native Finder dialog.
+   - Select **Embedded Console** mode.
+   - *(Optional)* Check *"Save directory as default for this profile"* if you want AIMux to remember it.
+   - Click **Launch Session** (or press `Enter`).
+3. The embedded terminal panel opens inside AIMux, running the official provider CLI (`claude` or `agy`) in an isolated sandbox.
+
+### Step 3: Complete Sign-In Inside the Terminal
+1. Follow the provider's standard interactive authentication prompt displayed in the terminal:
+   - For **Claude Code**: The CLI displays a login URL or opens the browser for Anthropic OAuth sign-in. Confirm access in your browser.
+   - For **Google Antigravity**: The `agy` CLI displays the Google sign-in prompt or browser link to authorize your Google Account / Google AI Pro subscription.
+2. Complete the authentication flow until the CLI confirms you are logged in.
+
+### Step 4: Click Verify (With Live Loading Feedback)
+1. On the profile card, click the **Verify** button.
+2. The button will immediately display a spinning loader with **`Verifying...`** while AIMux queries the isolated provider credentials.
+3. Once verified, the profile card displays:
+   - A green **Active Account** checkmark (`✓`)
+   - Your verified account email and display name
+   - Your organization and subscription plan tier (e.g. `Google AI Pro`, `Team`, `Pro`)
+4. Any terminal session launched under this profile will now use this authenticated account independently of other profiles.
+
+---
+
 ## Architecture Overview
 
 ```

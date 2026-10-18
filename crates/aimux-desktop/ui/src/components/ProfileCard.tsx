@@ -12,6 +12,7 @@ import { ProfileMetadata } from '../types';
 
 interface ProfileCardProps {
   profile: ProfileMetadata;
+  isVerifying?: boolean;
   onLaunchPrompt: (profile: ProfileMetadata, defaultMode: 'external' | 'embedded') => void;
   onVerify: (profile: ProfileMetadata) => void;
   onDelete: (profile: ProfileMetadata) => void;
@@ -20,6 +21,7 @@ interface ProfileCardProps {
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   profile,
+  isVerifying = false,
   onLaunchPrompt,
   onVerify,
   onDelete,
@@ -74,11 +76,12 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             <span className="text-zinc-500 font-medium">Provider Identity</span>
             <button
               onClick={() => onVerify(profile)}
-              className="text-zinc-400 hover:text-zinc-200 flex items-center gap-1 transition-colors"
+              disabled={isVerifying}
+              className="text-zinc-400 hover:text-zinc-200 disabled:opacity-50 flex items-center gap-1 transition-colors"
               title="Verify active account status"
             >
-              <RefreshCw className="w-2.5 h-2.5" />
-              <span>Verify</span>
+              <RefreshCw className={`w-2.5 h-2.5 ${isVerifying ? 'animate-spin text-zinc-200' : ''}`} />
+              <span>{isVerifying ? 'Verifying...' : 'Verify'}</span>
             </button>
           </div>
 
@@ -98,9 +101,18 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-[11px] text-amber-400/90 py-0.5">
-              <AlertCircle className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">Unverified. Launch to authenticate.</span>
+            <div className="flex items-center justify-between text-[11px] text-amber-400/90 py-0.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">Unverified. Sign in via terminal.</span>
+              </div>
+              <button
+                onClick={() => onLaunchPrompt(profile, 'embedded')}
+                className="text-[10px] text-amber-300 hover:text-amber-200 underline font-mono flex-shrink-0 ml-1"
+                title="Launch embedded terminal to authenticate"
+              >
+                Sign In
+              </button>
             </div>
           )}
         </div>
