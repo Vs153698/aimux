@@ -1,0 +1,8 @@
+crates/
+target/
+docs/
+scripts/
+.github/
+dist/
+Dockerfile
+.aimux/
