@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.80-slim as builder
+FROM rust:1-slim as builder
 
 WORKDIR /usr/src/aimux
 COPY Cargo.toml Cargo.lock ./
