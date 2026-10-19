@@ -8,7 +8,7 @@ mod commands;
 #[command(
     name = "aimux",
     author = "AIMux Contributors",
-    version = "0.1.0",
+    version,
     about = "Secure, locally operated AI Account Manager for Google Antigravity & Claude Code"
 )]
 struct Cli {

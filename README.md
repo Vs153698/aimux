@@ -292,14 +292,41 @@ If you have Rust installed and only want the headless CLI tool available system-
 cargo install --git https://github.com/Vs153698/aimux.git aimux-cli
 ```
 
-### Option C: Download Prebuilt Releases
+### Option C: Download Prebuilt Releases (GitHub Releases)
 
 Download precompiled standalone binaries or the macOS `.app` bundle from [GitHub Releases](https://github.com/Vs153698/aimux/releases):
-- **macOS Desktop App**: `AIMux.app.tar.gz` (extract and drag to `/Applications`)
-- **macOS CLI (Apple Silicon)**: `aimux-Darwin-arm64`
+- **macOS Desktop App (Apple Silicon)**: [`AIMux-0.2.0-macos-arm64.zip`](https://github.com/Vs153698/aimux/releases/latest) (extract and drag `AIMux.app` to `/Applications`)
+- **macOS CLI (Apple Silicon)**: [`aimux-v0.2.0-darwin-arm64.tar.gz`](https://github.com/Vs153698/aimux/releases/latest)
 - **macOS CLI (Intel)**: `aimux-Darwin-x86_64`
 - **Linux CLI**: `aimux-Linux-x86_64`
 - **Windows CLI**: `aimux-Windows-x86_64.exe`
+
+### Option D: Install via GitHub Packages
+
+AIMux is published directly to **GitHub Packages**:
+
+#### 1. Container Image (GitHub Container Registry — GHCR)
+Pull and run the containerized headless CLI in an isolated sandbox:
+```bash
+docker pull ghcr.io/vs153698/aimux:latest
+
+# Run CLI commands directly:
+docker run --rm -it ghcr.io/vs153698/aimux:latest doctor
+```
+
+#### 2. npm Package (@vs153698/aimux)
+Configure npm to resolve `@vs153698` from GitHub Packages:
+```bash
+echo "@vs153698:registry=https://npm.pkg.github.com" >> ~/.npmrc
+```
+Then run or install:
+```bash
+# Run without installing:
+npx @vs153698/aimux doctor
+
+# Or install globally:
+npm install -g @vs153698/aimux
+```
 
 ---
 
