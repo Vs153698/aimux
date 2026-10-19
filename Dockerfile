@@ -8,7 +8,7 @@ COPY crates ./crates
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 RUN cargo build --release -p aimux-cli
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     git \
