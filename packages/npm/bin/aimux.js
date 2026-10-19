@@ -20,29 +20,56 @@ const GITHUB_REPO = 'Vs153698/aimux';
 const cacheDir = path.join(os.homedir(), '.aimux', 'bin');
 const cachedBin = path.join(cacheDir, os.platform() === 'win32' ? 'aimux.exe' : 'aimux');
 
-const candidates = [
-  'aimux',
-  cachedBin,
-  path.join(os.homedir(), '.local', 'bin', 'aimux'),
-  '/usr/local/bin/aimux',
-  '/opt/homebrew/bin/aimux',
-  '/Applications/AIMux.app/Contents/MacOS/aimux',
-  path.join(__dirname, '..', '..', '..', 'target', 'release', 'aimux')
-];
+function isNativeBinary(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const real = fs.realpathSync(filePath);
+    if (real === fs.realpathSync(__filename)) return false;
+    if (real.includes('node_modules')) return false;
+
+    const buf = Buffer.alloc(4);
+    const fd = fs.openSync(real, 'r');
+    fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+
+    // Shell and Node scripts begin with #! (0x23 0x21)
+    if (buf[0] === 0x23 && buf[1] === 0x21) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 function findExistingBin() {
-  for (const cand of candidates) {
-    if (cand === 'aimux') {
-      try {
-        const test = spawnSync('which', ['aimux'], { encoding: 'utf8' });
-        if (test.status === 0 && test.stdout.trim()) {
-          return test.stdout.trim();
-        }
-      } catch (e) {}
-    } else if (fs.existsSync(cand)) {
+  const explicitCandidates = [
+    cachedBin,
+    path.join(os.homedir(), '.local', 'bin', 'aimux'),
+    '/usr/local/bin/aimux',
+    '/opt/homebrew/bin/aimux',
+    '/Applications/AIMux.app/Contents/MacOS/aimux',
+    path.join(__dirname, '..', '..', '..', 'target', 'release', 'aimux')
+  ];
+
+  for (const cand of explicitCandidates) {
+    if (isNativeBinary(cand)) {
       return cand;
     }
   }
+
+  try {
+    const whichCmd = os.platform() === 'win32' ? 'where' : 'which';
+    const test = spawnSync(whichCmd, ['aimux'], { encoding: 'utf8' });
+    if (test.status === 0 && test.stdout.trim()) {
+      const paths = test.stdout.trim().split('\n');
+      for (const p of paths) {
+        const cleaned = p.trim();
+        if (isNativeBinary(cleaned)) {
+          return cleaned;
+        }
+      }
+    }
+  } catch (e) {}
+
   return null;
 }
 
