@@ -314,19 +314,28 @@ docker pull ghcr.io/vs153698/aimux:latest
 docker run --rm -it ghcr.io/vs153698/aimux:latest doctor
 ```
 
-#### 2. npm Package (@vs153698/aimux)
-Configure npm to resolve `@vs153698` from GitHub Packages:
+#### 2. Direct Zero-Config npx Execution (Any system with Node.js)
+No `.npmrc` configuration or authentication required. Any user with Node.js installed can run AIMux directly from GitHub:
+```bash
+# Run instantly with npx (auto-downloads native engine if not installed):
+npx Vs153698/aimux doctor
+
+# Or install globally via npm:
+npm install -g Vs153698/aimux
+aimux doctor
+```
+
+#### 3. GitHub Packages npm Registry (@vs153698/aimux)
+To install from GitHub Packages registry instead of direct GitHub:
 ```bash
 echo "@vs153698:registry=https://npm.pkg.github.com" >> ~/.npmrc
-```
-Then run or install:
-```bash
-# Run without installing:
 npx @vs153698/aimux doctor
-
-# Or install globally:
-npm install -g @vs153698/aimux
 ```
+
+> [!TIP]
+> **Why did `npx @vs153698/aimux` need `.npmrc` pointing initially?**
+> By default, `npx` only checks the public `registry.npmjs.org`. Because `@vs153698/aimux` is currently hosted on **GitHub Packages** (`npm.pkg.github.com`), npm requires scope mapping in `.npmrc`.
+> Running `npx Vs153698/aimux doctor` bypasses this limitation completely by fetching directly from GitHub without any `.npmrc` file! If published to public npmjs.org (`npm publish --access public`), `npx @vs153698/aimux` also works globally with zero setup.
 
 ---
 

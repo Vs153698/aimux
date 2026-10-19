@@ -1,0 +1,27 @@
+{
+  "name": "@vs153698/aimux",
+  "version": "0.2.0",
+  "description": "Universal Multi-Account Isolation & Autonomous Handoff Manager for Claude Code & Antigravity",
+  "main": "packages/npm/bin/aimux.js",
+  "bin": {
+    "aimux": "packages/npm/bin/aimux.js"
+  },
+  "scripts": {
+    "start": "node packages/npm/bin/aimux.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vs153698/aimux.git"
+  },
+  "keywords": [
+    "claude-code",
+    "antigravity",
+    "aimux",
+    "multi-account",
+    "keychain-isolation",
+    "autonomous-handoff",
+    "pty-multiplexer"
+  ],
+  "author": "Vs153698",
+  "license": "Apache-2.0"
+}
