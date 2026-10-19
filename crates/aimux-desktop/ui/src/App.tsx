@@ -6,7 +6,8 @@ import {
   Layers, 
   AlertCircle, 
   X, 
-  CheckCircle2 
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 import { ProfileMetadata, SessionMetadata, ProviderType, RateLimitAlert } from './types';
 import { api, isTauri } from './services/api';
@@ -44,6 +45,25 @@ export const App: React.FC = () => {
     urlParams?.has('handoff') ? 'Approaching hourly message limit (95% quota reached) on Claude Code' : undefined
   );
 
+  // Auto-failover configuration & countdown state (Zero-click mode)
+  const [autoHandoffEnabled, setAutoHandoffEnabled] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('aimux_auto_handoff') !== 'false' : true;
+  });
+  const [autoCountdown, setAutoCountdown] = useState<number | null>(null);
+  const [autoTargetInfo, setAutoTargetInfo] = useState<{
+    sessionId: string;
+    sourceName: string;
+    targetProfileId: string;
+    targetProfileName: string;
+    reason: string;
+  } | null>(null);
+
+  const toggleAutoHandoff = () => {
+    const next = !autoHandoffEnabled;
+    setAutoHandoffEnabled(next);
+    localStorage.setItem('aimux_auto_handoff', String(next));
+  };
+
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [showEmbeddedPanel, setShowEmbeddedPanel] = useState(Boolean(urlParams?.has('panel')));
   const [bannerNotice, setBannerNotice] = useState<{ type: 'info' | 'error' | 'success'; message: string } | null>(null);
@@ -72,12 +92,97 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeSessionId]);
 
+  const executeAutoHandoffAction = async (
+    sessionId: string,
+    targetProfileId: string,
+    sourceName: string,
+    targetName: string
+  ) => {
+    try {
+      setBannerNotice({
+        type: 'info',
+        message: `⚡ Autonomous handoff: transferring session from ${sourceName} to ${targetName}...`,
+      });
+      const preview = await api.prepareHandoffContext(sessionId);
+      const newSession = await api.executeHandoff(
+        sessionId,
+        targetProfileId,
+        preview.context_markdown
+      );
+      await loadData();
+      setActiveSessionId(newSession.session_id);
+      setShowEmbeddedPanel(true);
+      setBannerNotice({
+        type: 'success',
+        message: `⚡ Autonomous handoff complete! Switched to ${targetName} (${newSession.command}, PID: ${newSession.pid}) with full context restored.`,
+      });
+      setTimeout(() => setBannerNotice(null), 7000);
+    } catch (err: any) {
+      console.error('Auto-handoff failed:', err);
+      setBannerNotice({
+        type: 'error',
+        message: `Auto-handoff failed: ${err.message || String(err)}`,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (autoCountdown === null) return;
+    if (autoCountdown > 0) {
+      const timer = setTimeout(() => {
+        setAutoCountdown(autoCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (autoCountdown === 0 && autoTargetInfo) {
+      executeAutoHandoffAction(
+        autoTargetInfo.sessionId,
+        autoTargetInfo.targetProfileId,
+        autoTargetInfo.sourceName,
+        autoTargetInfo.targetProfileName
+      );
+      setAutoCountdown(null);
+      setAutoTargetInfo(null);
+    }
+  }, [autoCountdown, autoTargetInfo]);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     if (isTauri()) {
       import('@tauri-apps/api/event').then(({ listen }) => {
-        listen<RateLimitAlert>('rate-limit-detected', (event) => {
+        listen<RateLimitAlert>('rate-limit-detected', async (event) => {
           const alert = event.payload;
+
+          if (autoHandoffEnabled) {
+            try {
+              const currentProfiles = await api.listProfiles();
+              const currentSessions = await api.listSessions();
+              const sourceSession = currentSessions.find((s) => s.session_id === alert.session_id);
+              const sourceProfile = currentProfiles.find(
+                (p) => p.id === (sourceSession?.profile_id || alert.profile_id)
+              );
+
+              // Target preference: alternate provider first, or any other profile
+              const target =
+                currentProfiles.find((p) =>
+                  sourceProfile ? p.provider !== sourceProfile.provider : p.id !== alert.profile_id
+                ) || currentProfiles.find((p) => p.id !== alert.profile_id);
+
+              if (target) {
+                setAutoTargetInfo({
+                  sessionId: alert.session_id,
+                  sourceName: alert.profile_name,
+                  targetProfileId: target.id,
+                  targetProfileName: target.name,
+                  reason: alert.reason,
+                });
+                setAutoCountdown(5);
+                return;
+              }
+            } catch (err) {
+              console.error('Failed to configure auto handoff target:', err);
+            }
+          }
+
           setBannerNotice({
             type: 'error',
             message: `⚠️ Quota limit detected on ${alert.profile_name}: ${alert.reason}. Cross-provider handoff available.`,
@@ -92,7 +197,7 @@ export const App: React.FC = () => {
     return () => {
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [autoHandoffEnabled]);
 
   const handleOpenLaunchModal = (profile: ProfileMetadata, defaultMode: 'external' | 'embedded') => {
     setLaunchModalProfile(profile);
@@ -252,7 +357,55 @@ export const App: React.FC = () => {
         setTab={setCurrentTab}
         onAddProfile={() => setIsAddModalOpen(true)}
         runningSessionCount={runningSessions.length}
+        autoHandoffEnabled={autoHandoffEnabled}
+        onToggleAutoHandoff={toggleAutoHandoff}
       />
+
+      {/* Autonomous Handoff Countdown Banner (Zero-Click Failover) */}
+      {autoCountdown !== null && autoTargetInfo && (
+        <div className="bg-amber-950/80 border-b border-amber-600/70 px-4 py-2.5 text-xs text-amber-200 shadow-lg backdrop-blur flex items-center justify-between animate-in slide-in-from-top duration-200">
+          <div className="flex items-center gap-2.5 max-w-7xl mx-auto w-full">
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
+            <Zap className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span className="truncate">
+              <strong>Autonomous Failover:</strong> Quota exhausted on{' '}
+              <strong>{autoTargetInfo.sourceName}</strong> ({autoTargetInfo.reason}). Auto-transferring task to{' '}
+              <strong>{autoTargetInfo.targetProfileName}</strong> in{' '}
+              <strong className="text-white bg-amber-600/60 px-1.5 py-0.5 rounded font-mono text-xs">{autoCountdown}s</strong>...
+            </span>
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  executeAutoHandoffAction(
+                    autoTargetInfo.sessionId,
+                    autoTargetInfo.targetProfileId,
+                    autoTargetInfo.sourceName,
+                    autoTargetInfo.targetProfileName
+                  );
+                  setAutoCountdown(null);
+                  setAutoTargetInfo(null);
+                }}
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold px-2.5 py-1 rounded text-[11px] transition-colors shadow-sm"
+              >
+                Switch Now
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoCountdown(null);
+                  setAutoTargetInfo(null);
+                  setHandoffSessionId(autoTargetInfo.sessionId);
+                  setHandoffAlertReason(autoTargetInfo.reason);
+                }}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded text-[11px] transition-colors border border-zinc-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Status Banner */}
       {bannerNotice && (

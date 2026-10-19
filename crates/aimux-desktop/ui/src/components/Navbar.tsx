@@ -7,7 +7,8 @@ import {
   ShieldCheck,
   Menu,
   X,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -15,6 +16,8 @@ interface NavbarProps {
   setTab: (tab: 'profiles' | 'sessions' | 'doctor') => void;
   onAddProfile: () => void;
   runningSessionCount: number;
+  autoHandoffEnabled?: boolean;
+  onToggleAutoHandoff?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -22,6 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setTab,
   onAddProfile,
   runningSessionCount,
+  autoHandoffEnabled = true,
+  onToggleAutoHandoff,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -90,6 +95,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Actions */}
           <div className="flex items-center gap-2.5">
+            {onToggleAutoHandoff && (
+              <button
+                type="button"
+                onClick={onToggleAutoHandoff}
+                className={`hidden sm:flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md border transition-all ${
+                  autoHandoffEnabled
+                    ? 'bg-amber-950/40 text-amber-300 border-amber-800/60 hover:bg-amber-900/40'
+                    : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                }`}
+                title="When active, automatically spins up alternate AI CLI and transfers context upon reaching quota limits with zero manual clicks."
+              >
+                <Zap className={`w-3.5 h-3.5 ${autoHandoffEnabled ? 'text-amber-400 fill-amber-400/20' : 'text-zinc-500'}`} />
+                <span>Auto-Failover: {autoHandoffEnabled ? 'Active' : 'Off'}</span>
+              </button>
+            )}
+
             <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-zinc-400 bg-zinc-900/60 px-2 py-1 rounded-md border border-zinc-800">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>Sandbox Isolation</span>
